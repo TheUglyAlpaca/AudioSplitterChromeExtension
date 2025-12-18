@@ -526,6 +526,16 @@ async function handleStopCapture(): Promise<Blob | null> {
   if (mediaRecorder && isRecording) {
     return new Promise((resolve) => {
       if (mediaRecorder) {
+        // Request any remaining data before stopping
+        if (mediaRecorder.state === 'recording') {
+          try {
+            mediaRecorder.requestData();
+            console.log('Requested final data chunk before stopping');
+          } catch (e) {
+            console.warn('Could not request data before stopping:', e);
+          }
+        }
+        
         // Store the onstop handler before stopping
         const originalOnStop = mediaRecorder.onstop;
         
@@ -534,132 +544,126 @@ async function handleStopCapture(): Promise<Blob | null> {
           const totalSize = recordingChunks.reduce((sum, chunk) => sum + chunk.size, 0);
           console.log('Total chunks size:', totalSize);
           
-          // Get format preference for blob type
-          chrome.storage.local.get(['preferences'], (prefsResult) => {
-            const format = prefsResult.preferences?.format || 'webm';
-            let mimeType = 'audio/webm';
-            
-            if (format === 'ogg') {
-              mimeType = 'audio/ogg';
-            } else if (format === 'webm') {
-              mimeType = 'audio/webm';
-            }
-            
-            const blob = new Blob(recordingChunks, { type: mimeType });
-            console.log('Created blob, size:', blob.size);
-          
-            if (originalOnStop && mediaRecorder) {
-              originalOnStop.call(mediaRecorder, event);
-            }
-            
-            isRecording = false;
-            const chunksToReturn = [...recordingChunks]; // Copy before clearing
-            recordingChunks = []; // Clear chunks after creating blob
-            
-            // Clean up stream completely - stop all tracks first
-            if (currentStream) {
-              const tracks = currentStream.getTracks();
-              tracks.forEach((track: MediaStreamTrack) => {
-                track.stop();
-              });
-              // Wait a moment for tracks to fully stop before nulling
-              setTimeout(() => {
-                currentStream = null;
-              }, 50);
-            } else {
-              currentStream = null;
-            }
-
-            if (audioContext) {
-              audioContext.close().catch(() => {
-                // Ignore errors on close
-              });
-              audioContext = null;
-            }
-            destinationNode = null;
-            
-            // Clear all recording-related storage
-            chrome.storage.local.remove([
-              'recordingStreamId', 
-              'recordingTabId', 
-              'recordingStartTime',
-              'recordingChunks'
-            ]);
-            
-            const recorderToNull = mediaRecorder;
-            mediaRecorder = null;
-            
-            // Resolve with the blob
-            if (blob.size > 0) {
-              console.log('Resolving with blob, size:', blob.size);
-              resolve(blob);
-            } else {
-              console.warn('Blob size is 0, trying to use chunks directly');
-              // If blob is empty, try to create from chunks copy
-              if (chunksToReturn.length > 0) {
-                const retryBlob = new Blob(chunksToReturn, { type: mimeType });
-                console.log('Retry blob size:', retryBlob.size);
-                resolve(retryBlob);
-              } else {
-                console.warn('No chunks available, resolving with null');
-                resolve(null);
-              }
-            }
-          });
+          // Request data one more time in case there's remaining data
+          if (mediaRecorder && mediaRecorder.state === 'inactive') {
+            // Wait a bit for any final chunks
+            setTimeout(() => {
+              processStopCapture(resolve, originalOnStop);
+            }, 100);
+          } else {
+            processStopCapture(resolve, originalOnStop);
+          }
         };
         
-        // Request final data before stopping
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.requestData();
-        }
-        if (mediaRecorder) {
+        // Stop the recorder
+        if (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused') {
           mediaRecorder.stop();
+        } else {
+          // Already stopped, process immediately
+          processStopCapture(resolve, originalOnStop);
         }
       } else {
         resolve(null);
       }
     });
   }
-  
-  // If no active recording, return existing chunks if any
-  if (recordingChunks.length > 0) {
-    // Get format preference
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['preferences'], (prefsResult) => {
-        const format = prefsResult.preferences?.format || 'webm';
-        let mimeType = 'audio/webm';
-        
-        if (format === 'ogg') {
-          mimeType = 'audio/ogg';
-        } else if (format === 'webm') {
-          mimeType = 'audio/webm';
-        }
-        
-        const blob = new Blob(recordingChunks, { type: mimeType });
-        recordingChunks = []; // Clear chunks
-        isRecording = false; // Ensure flag is cleared
-        // Clear all recording-related storage
-        chrome.storage.local.remove([
-          'recordingStreamId', 
-          'recordingTabId', 
-          'recordingStartTime',
-          'recordingChunks'
-        ]);
-        resolve(blob);
-      });
-    });
-  }
-  
-  // Clear storage and state even if no chunks
-  isRecording = false;
-  recordingChunks = [];
-  chrome.storage.local.remove([
-    'recordingStreamId', 
-    'recordingTabId', 
-    'recordingStartTime',
-    'recordingChunks'
-  ]);
   return Promise.resolve(null);
+}
+
+function processStopCapture(resolve: (blob: Blob | null) => void, originalOnStop: ((this: MediaRecorder, ev: Event) => any) | null) {
+  console.log('Processing stop capture, chunks count:', recordingChunks.length);
+          
+  // Get format preference for blob type
+  chrome.storage.local.get(['preferences'], (prefsResult) => {
+    const format = prefsResult.preferences?.format || 'webm';
+    let mimeType = 'audio/webm';
+    
+    if (format === 'ogg') {
+      mimeType = 'audio/ogg';
+    } else if (format === 'webm') {
+      mimeType = 'audio/webm';
+    }
+    
+    // Ensure we have chunks
+    if (recordingChunks.length === 0) {
+      console.warn('No recording chunks available when stopping');
+      resolve(null);
+      return;
+    }
+    
+    const blob = new Blob(recordingChunks, { type: mimeType });
+    console.log('Created blob, size:', blob.size, 'from', recordingChunks.length, 'chunks');
+  
+    if (originalOnStop && mediaRecorder) {
+      try {
+        originalOnStop.call(mediaRecorder, new Event('stop'));
+      } catch (e) {
+        console.warn('Error calling original onstop:', e);
+      }
+    }
+    
+    isRecording = false;
+    const chunksToReturn = [...recordingChunks]; // Copy before clearing
+    recordingChunks = []; // Clear chunks after creating blob
+    
+    // Clean up stream completely - stop all tracks first
+    if (currentStream) {
+      const tracks = currentStream.getTracks();
+      tracks.forEach((track: MediaStreamTrack) => {
+        track.stop();
+      });
+      // Wait a moment for tracks to fully stop before nulling
+      setTimeout(() => {
+        currentStream = null;
+      }, 50);
+    } else {
+      currentStream = null;
+    }
+
+    if (audioContext) {
+      audioContext.close().catch(() => {
+        // Ignore errors on close
+      });
+      audioContext = null;
+    }
+    destinationNode = null;
+    
+    // Clear all recording-related storage
+    chrome.storage.local.remove([
+      'recordingStreamId', 
+      'recordingTabId', 
+      'recordingStartTime',
+      'recordingChunks'
+    ]);
+    
+    const recorderToNull = mediaRecorder;
+    mediaRecorder = null;
+    
+    // Resolve with the blob - check for minimum size (at least 1KB to be valid)
+    if (blob.size > 1024) {
+      console.log('Resolving with blob, size:', blob.size);
+      resolve(blob);
+    } else if (blob.size > 0) {
+      console.warn('Blob size is very small:', blob.size, 'but resolving anyway');
+      resolve(blob);
+    } else {
+      console.warn('Blob size is 0, trying to use chunks directly');
+      // If blob is empty, try to create from chunks copy
+      if (chunksToReturn.length > 0) {
+        const retryBlob = new Blob(chunksToReturn, { type: mimeType });
+        console.log('Retry blob size:', retryBlob.size);
+        if (retryBlob.size > 0) {
+          resolve(retryBlob);
+        } else {
+          console.error('Retry blob is also empty');
+          resolve(null);
+        }
+      } else {
+        console.warn('No chunks available, resolving with null');
+        resolve(null);
+      }
+    }
+  });
 }
 
 // Handle popup close - continue recording in background

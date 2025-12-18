@@ -205,7 +205,8 @@ const Popup: React.FC = () => {
       const stoppedBlob = await stopRecording();
       // Save recording to Recent Recordings after stopping
       // Use the current recordingName (which may have been edited)
-      if (stoppedBlob && stoppedBlob.size > 0) {
+      // Check for valid blob - at least 1KB to be considered valid
+      if (stoppedBlob && stoppedBlob.size > 1024) {
         console.log('Recording stopped, blob size:', stoppedBlob.size);
         const nameToSave = recordingName || `recording ${formatDate(new Date())}`;
         console.log('Saving recording with name:', nameToSave);
@@ -216,14 +217,26 @@ const Popup: React.FC = () => {
         } catch (error: any) {
           console.error('Error saving recording to history:', error);
           const errorMessage = error?.message || 'Unknown error occurred';
-          alert(`Recording stopped but failed to save to recent recordings: ${errorMessage}`);
+          
+          // Provide user-friendly message for quota exceeded
+          if (errorMessage.includes('quota') || errorMessage.includes('Quota')) {
+            alert('Storage limit reached. The oldest recordings have been removed to make space. Your new recording has been saved.');
+          } else {
+            alert(`Recording stopped but failed to save to recent recordings: ${errorMessage}`);
+          }
         }
       } else {
         console.warn('No valid blob to save after stopping recording. Blob:', stoppedBlob);
         if (stoppedBlob) {
-          console.warn('Blob exists but size is:', stoppedBlob.size);
+          console.warn('Blob exists but size is too small:', stoppedBlob.size, 'bytes (minimum 1KB required)');
+          if (stoppedBlob.size > 0) {
+            alert(`Recording captured but audio data is very small (${stoppedBlob.size} bytes). The recording may be corrupted or too short.`);
+          } else {
+            alert('Recording stopped but no audio data was captured. Please try recording again.');
+          }
+        } else {
+          alert('Recording stopped but no audio data was captured. Please try recording again.');
         }
-        alert('Recording stopped but no audio data was captured. Please try recording again.');
       }
     } else {
       // Clear previous recording state before starting new one
@@ -328,20 +341,40 @@ const Popup: React.FC = () => {
             const savedRecordings = result.savedRecordings || [];
             console.log('Current saved recordings count:', savedRecordings.length);
             savedRecordings.unshift(recording); // Add to beginning
-            // Keep only last 50 recordings
-            const limitedRecordings = savedRecordings.slice(0, 50);
-            console.log('Saving', limitedRecordings.length, 'recordings to storage...');
             
-            chrome.storage.local.set({ savedRecordings: limitedRecordings }, () => {
-              if (chrome.runtime.lastError) {
-                const error = new Error(chrome.runtime.lastError.message);
-                console.error('Error saving recording to storage:', error);
-                reject(error);
-              } else {
-                console.log('Recording saved to storage successfully! ID:', recordingId);
-                resolve();
-              }
-            });
+            // Try to save with progressively fewer recordings if quota is exceeded
+            const trySave = (recordingsToSave: any[], attempt: number = 1) => {
+              // Keep only last N recordings, reducing if needed
+              const maxRecordings = Math.max(1, 50 - (attempt - 1) * 10);
+              const limitedRecordings = recordingsToSave.slice(0, maxRecordings);
+              console.log(`Attempt ${attempt}: Saving ${limitedRecordings.length} recordings to storage...`);
+              
+              chrome.storage.local.set({ savedRecordings: limitedRecordings }, () => {
+                if (chrome.runtime.lastError) {
+                  const errorMsg = chrome.runtime.lastError.message || '';
+                  
+                  // If quota exceeded and we have more than 1 recording, try removing more
+                  if (errorMsg.includes('quota') && limitedRecordings.length > 1 && attempt < 5) {
+                    console.warn(`Quota exceeded on attempt ${attempt}, removing more old recordings...`);
+                    // Remove oldest recordings (from end of array) and try again
+                    const reducedRecordings = limitedRecordings.slice(0, Math.max(1, limitedRecordings.length - 5));
+                    trySave(reducedRecordings, attempt + 1);
+                  } else {
+                    const error = new Error(chrome.runtime.lastError.message);
+                    console.error('Error saving recording to storage:', error);
+                    reject(error);
+                  }
+                } else {
+                  console.log('Recording saved to storage successfully! ID:', recordingId);
+                  if (attempt > 1) {
+                    console.warn(`Saved after ${attempt} attempts by removing old recordings`);
+                  }
+                  resolve();
+                }
+              });
+            };
+            
+            trySave(savedRecordings);
           } catch (error) {
             console.error('Error processing recording save:', error);
             reject(error);
