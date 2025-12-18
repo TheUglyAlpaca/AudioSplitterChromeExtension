@@ -12,10 +12,11 @@ import { RecordingControls } from './components/RecordingControls';
 import { RecordButton } from './components/RecordButton';
 import { RecentRecordings } from './components/RecentRecordings';
 import { Preferences } from './components/Preferences';
+import { SAMProcessor } from './components/SAMProcessor';
 import './styles/popup.css';
 
 const Popup: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'recording' | 'recent' | 'preferences'>('recording');
+  const [activeTab, setActiveTab] = useState<'recording' | 'recent' | 'preferences' | 'ai'>('recording');
   const [recordingName, setRecordingName] = useState<string>('');
   const [recordingTimestamp, setRecordingTimestamp] = useState<Date>(new Date());
   const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
@@ -610,6 +611,12 @@ const Popup: React.FC = () => {
           Recent Recordings
         </button>
         <button
+          className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          AI
+        </button>
+        <button
           className={`tab ${activeTab === 'preferences' ? 'active' : ''}`}
           onClick={() => setActiveTab('preferences')}
         >
@@ -711,13 +718,62 @@ const Popup: React.FC = () => {
         </div>
       )}
 
+      {activeTab === 'ai' && (
+        <div className="ai-content">
+          {!audioBlob ? (
+            <div className="ai-empty-state">
+              <div className="ai-empty-icon">🎵</div>
+              <h3 className="ai-empty-title">No Audio Loaded</h3>
+              <p className="ai-empty-description">
+                Record audio or select a recording from Recent Recordings to use AI processing.
+              </p>
+              <button
+                className="ai-select-button"
+                onClick={() => setActiveTab('recent')}
+              >
+                Go to Recent Recordings
+              </button>
+            </div>
+          ) : (
+            <div className="ai-processor-wrapper">
+              <div className="ai-audio-info">
+                <div className="ai-audio-name">{recordingName || 'Untitled Recording'}</div>
+                {recordingName && (
+                  <button
+                    className="ai-load-button"
+                    onClick={() => setActiveTab('recent')}
+                    title="Select different recording"
+                  >
+                    Change Recording
+                  </button>
+                )}
+              </div>
+              <SAMProcessor
+                audioBlob={audioBlob}
+                onProcessed={async (processedBlob) => {
+                  // Update the audio blob with processed version
+                  setAudioBlob(processedBlob);
+                  // Re-analyze waveform for the processed audio
+                  await analyzeAudio(processedBlob);
+                  // Update recording name to indicate it's been processed
+                  const currentName = recordingName.replace(/\.[^/.]+$/, '');
+                  setRecordingName(`${currentName} (processed)`);
+                  // Switch to recording tab to see the processed audio
+                  setActiveTab('recording');
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === 'preferences' && (
         <div className="preferences-wrapper">
           <Preferences />
         </div>
       )}
 
-      {activeTab !== 'recent' && (
+      {activeTab !== 'recent' && activeTab !== 'ai' && (
         <button 
           className="buy-coffee-button"
           onClick={() => alert('In development')}

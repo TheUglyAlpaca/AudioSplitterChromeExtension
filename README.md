@@ -38,6 +38,12 @@ A Chrome extension for recording browser audio output with waveform visualizatio
 - **Download Recordings**: Download recordings in your preferred format
 - **Delete Recordings**: Remove recordings from history
 
+### SAM Audio Isolation (Meta SAM-Audio)
+- **Sound Isolation**: Isolate specific sounds from audio using text prompts
+- **Text Prompting**: Describe the sound you want to isolate (e.g., "A man speaking", "Guitar playing")
+- **Residual Audio**: Option to get everything except the target sound
+- **Local Processing**: Runs via local Python server for privacy and performance
+
 ### UI/UX
 - **Modern Design**: Sleek, clean interface with Inter font
 - **Dark/Light Mode**: Toggle between dark and light themes
@@ -48,6 +54,8 @@ A Chrome extension for recording browser audio output with waveform visualizatio
 
 ### Prerequisites
 - Node.js (v14 or higher)
+- Python 3.10+ (for SAM Audio isolation feature)
+- CUDA-compatible GPU (recommended for SAM Audio, but CPU works too)
 - npm or yarn
 
 ### Build Instructions
@@ -212,6 +220,47 @@ The build process:
 4. Copies manifest.json and icons to dist directory
 
 Output is in the `dist/` directory, which is what you load into Chrome.
+
+## SAM Audio Integration
+
+The extension includes integration with Meta's SAM-Audio model for isolating sounds from audio recordings.
+
+### Setting Up SAM Audio Server
+
+1. **Install Python Dependencies:**
+   ```bash
+   cd sam_server
+   pip install -r requirements.txt
+   ```
+
+2. **Get Model Access:**
+   - Request access to [SAM-Audio models on Hugging Face](https://huggingface.co/facebook/sam-audio-large)
+   - Once approved, authenticate:
+     ```bash
+     huggingface-cli login
+     ```
+     Enter your Hugging Face access token when prompted.
+
+3. **Start the Server:**
+   ```bash
+   python sam_server/server.py
+   ```
+   The server will run on `http://localhost:5000`
+
+4. **Use in Extension:**
+   - Record or load an audio file
+   - Enter a text description of the sound to isolate
+   - Click "Process with SAM" to isolate the sound
+   - The processed audio will replace the current recording
+
+### SAM Audio Features
+
+- **Text Prompting**: Describe sounds in natural language
+- **Residual Mode**: Get everything except the target sound
+- **Automatic Format Handling**: Works with all supported audio formats
+- **Real-time Status**: Shows server connection status
+
+For more details, see `sam_server/README.md`.
 
 ## Known Limitations
 
