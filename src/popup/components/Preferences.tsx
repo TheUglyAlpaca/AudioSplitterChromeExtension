@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { getAllRecordingsMetadata, getRecording, saveRecording, RecordingMetadata } from '../utils/storageManager';
+import { getFileExtension } from '../utils/formatUtils';
 
 interface PreferencesProps {
   onClose?: () => void;
@@ -48,9 +50,12 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
     
     // Update all saved recordings to use the new format
     // Convert the audio data to the new format
-    chrome.storage.local.get(['savedRecordings', 'preferences'], async (prefsResult) => {
-      const savedRecordings = prefsResult.savedRecordings || [];
-      if (savedRecordings.length > 0) {
+    chrome.storage.local.get(['preferences'], async (prefsResult) => {
+      try {
+        // Get all recordings from IndexedDB
+        const recordingsMetadata = await getAllRecordingsMetadata();
+        if (recordingsMetadata.length === 0) return;
+        
         // Import converter dynamically to avoid circular dependencies
         const { convertAudioFormat } = await import('../utils/audioConverter');
         
@@ -59,34 +64,40 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         const currentChannelMode = prefsResult.preferences?.channelMode || undefined;
         const targetChannels = currentChannelMode === 'mono' ? 1 : currentChannelMode === 'stereo' ? 2 : undefined;
         
-        // Convert all recordings to the new format with current sample rate and channel mode
-        const updatedRecordings = await Promise.all(
-          savedRecordings.map(async (recording: any) => {
-            // Reconstruct blob from stored audio data
-            const audioArray = new Uint8Array(recording.audioData);
-            const originalBlob = new Blob([audioArray], { type: 'audio/webm' });
+        // Convert all recordings to the new format
+        for (const metadata of recordingsMetadata) {
+          try {
+            // Load full recording
+            const fullRecording = await getRecording(metadata.id);
+            if (!fullRecording) continue;
+            
+            // Reconstruct blob from ArrayBuffer
+            const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
             
             // Convert to new format with sample rate and channel mode
             const convertedBlob = await convertAudioFormat(originalBlob, newFormat, currentSampleRate, targetChannels);
             const convertedArrayBuffer = await convertedBlob.arrayBuffer();
-            const convertedAudioData = Array.from(new Uint8Array(convertedArrayBuffer));
             
             // Update filename extension
-            const extension = newFormat.toLowerCase();
-            let recordingName = recording.name;
+            const extension = getFileExtension(newFormat);
+            let recordingName = metadata.name;
             const nameWithoutExt = recordingName.replace(/\.[^/.]+$/, '');
             recordingName = `${nameWithoutExt}.${extension}`;
             
-            return {
-              ...recording,
+            // Save back to IndexedDB
+            const updatedMetadata: RecordingMetadata = {
+              ...metadata,
               name: recordingName,
-              audioData: convertedAudioData,
               format: newFormat
             };
-          })
-        );
-        
-        chrome.storage.local.set({ savedRecordings: updatedRecordings });
+            
+            await saveRecording(updatedMetadata, convertedArrayBuffer);
+          } catch (error) {
+            console.error(`Error converting recording ${metadata.id}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Error updating recordings format:', error);
       }
     });
   };
@@ -97,31 +108,33 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
     savePreferences(undefined, newSampleRate);
     
     // Update all saved recordings to use the new sample rate
-    chrome.storage.local.get(['savedRecordings', 'preferences'], async (prefsResult) => {
-      const savedRecordings = prefsResult.savedRecordings || [];
-      if (savedRecordings.length > 0) {
+    chrome.storage.local.get(['preferences'], async (prefsResult) => {
+      try {
+        const recordingsMetadata = await getAllRecordingsMetadata();
+        if (recordingsMetadata.length === 0) return;
+        
         const { convertAudioFormat } = await import('../utils/audioConverter');
         const format = prefsResult.preferences?.format || 'webm';
         const channelMode = prefsResult.preferences?.channelMode || undefined;
         const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
         const targetSampleRate = parseInt(newSampleRate);
         
-        const updatedRecordings = await Promise.all(
-          savedRecordings.map(async (recording: any) => {
-            const audioArray = new Uint8Array(recording.audioData);
-            const originalBlob = new Blob([audioArray], { type: 'audio/webm' });
+        for (const metadata of recordingsMetadata) {
+          try {
+            const fullRecording = await getRecording(metadata.id);
+            if (!fullRecording) continue;
+            
+            const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
             const convertedBlob = await convertAudioFormat(originalBlob, format, targetSampleRate, targetChannels);
             const convertedArrayBuffer = await convertedBlob.arrayBuffer();
-            const convertedAudioData = Array.from(new Uint8Array(convertedArrayBuffer));
             
-            return {
-              ...recording,
-              audioData: convertedAudioData
-            };
-          })
-        );
-        
-        chrome.storage.local.set({ savedRecordings: updatedRecordings });
+            await saveRecording(metadata, convertedArrayBuffer);
+          } catch (error) {
+            console.error(`Error converting recording ${metadata.id}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Error updating recordings sample rate:', error);
       }
     });
   };
@@ -132,30 +145,37 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
     savePreferences(undefined, undefined, newChannelMode);
     
     // Update all saved recordings to use the new channel mode
-    chrome.storage.local.get(['savedRecordings', 'preferences'], async (prefsResult) => {
-      const savedRecordings = prefsResult.savedRecordings || [];
-      if (savedRecordings.length > 0) {
+    chrome.storage.local.get(['preferences'], async (prefsResult) => {
+      try {
+        const recordingsMetadata = await getAllRecordingsMetadata();
+        if (recordingsMetadata.length === 0) return;
+        
         const { convertAudioFormat } = await import('../utils/audioConverter');
         const format = prefsResult.preferences?.format || 'webm';
         const sampleRate = prefsResult.preferences?.sampleRate ? parseInt(prefsResult.preferences.sampleRate) : undefined;
         const targetChannels = newChannelMode === 'mono' ? 1 : newChannelMode === 'stereo' ? 2 : undefined;
         
-        const updatedRecordings = await Promise.all(
-          savedRecordings.map(async (recording: any) => {
-            const audioArray = new Uint8Array(recording.audioData);
-            const originalBlob = new Blob([audioArray], { type: 'audio/webm' });
+        for (const metadata of recordingsMetadata) {
+          try {
+            const fullRecording = await getRecording(metadata.id);
+            if (!fullRecording) continue;
+            
+            const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
             const convertedBlob = await convertAudioFormat(originalBlob, format, sampleRate, targetChannels);
             const convertedArrayBuffer = await convertedBlob.arrayBuffer();
-            const convertedAudioData = Array.from(new Uint8Array(convertedArrayBuffer));
             
-            return {
-              ...recording,
-              audioData: convertedAudioData
+            const updatedMetadata: RecordingMetadata = {
+              ...metadata,
+              channelMode: newChannelMode
             };
-          })
-        );
-        
-        chrome.storage.local.set({ savedRecordings: updatedRecordings });
+            
+            await saveRecording(updatedMetadata, convertedArrayBuffer);
+          } catch (error) {
+            console.error(`Error converting recording ${metadata.id}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Error updating recordings channel mode:', error);
       }
     });
   };

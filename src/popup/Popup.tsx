@@ -5,6 +5,7 @@ import { useWaveform } from './hooks/useWaveform';
 import { formatTime, formatDate, downloadAudio } from './utils/audioUtils';
 import { getFileExtension } from './utils/formatUtils';
 import { convertAudioFormat } from './utils/audioConverter';
+import { saveRecording, migrateFromChromeStorage, updateRecordingName } from './utils/storageManager';
 import { Waveform } from './components/Waveform';
 import { AudioInfo } from './components/AudioInfo';
 import { RecordingControls } from './components/RecordingControls';
@@ -59,6 +60,21 @@ const Popup: React.FC = () => {
   // Check recording state on mount and handle background recording
   useEffect(() => {
     checkRecordingState();
+    
+    // Migrate existing recordings from chrome.storage.local to IndexedDB on first load
+    chrome.storage.local.get(['migratedToIndexedDB'], async (result) => {
+      if (!result.migratedToIndexedDB) {
+        try {
+          const count = await migrateFromChromeStorage();
+          if (count > 0) {
+            console.log(`Migrated ${count} recordings to IndexedDB`);
+          }
+          chrome.storage.local.set({ migratedToIndexedDB: true });
+        } catch (error) {
+          console.error('Migration error:', error);
+        }
+      }
+    });
   }, [checkRecordingState]);
 
   // Load theme preference
@@ -311,79 +327,31 @@ const Popup: React.FC = () => {
       
       console.log('Converting blob to array buffer...');
       const arrayBuffer = await convertedBlob.arrayBuffer();
-      const audioData = Array.from(new Uint8Array(arrayBuffer));
-      console.log('Array buffer converted, audio data length:', audioData.length);
+      console.log('Array buffer converted, size:', arrayBuffer.byteLength);
       
       const recordingId = Date.now().toString();
-      const recording = {
+      const metadata = {
         id: recordingId,
         name: recordingName,
         timestamp: new Date().toISOString(),
         duration: recordingDuration,
-        audioData: audioData,
         format: format, // Store current format preference
         channelMode: preferences.channelMode || 'stereo' // Store channel mode
       };
       
-      console.log('Recording object created, ID:', recordingId, 'Duration:', recordingDuration);
+      console.log('Recording metadata created, ID:', recordingId, 'Duration:', recordingDuration);
       
       // Store the current recording ID so we can update it later if name is edited
       setCurrentRecordingId(recordingId);
       
-      // Save recording to storage - ensure it's saved
-      return new Promise<void>((resolve, reject) => {
-        chrome.storage.local.get(['savedRecordings'], (result) => {
-          if (chrome.runtime.lastError) {
-            const error = new Error(chrome.runtime.lastError.message);
-            console.error('Error getting savedRecordings:', error);
-            reject(error);
-            return;
-          }
-          
-          try {
-            const savedRecordings = result.savedRecordings || [];
-            console.log('Current saved recordings count:', savedRecordings.length);
-            savedRecordings.unshift(recording); // Add to beginning
-            
-            // Try to save with progressively fewer recordings if quota is exceeded
-            const trySave = (recordingsToSave: any[], attempt: number = 1) => {
-              // Keep only last N recordings, reducing if needed
-              const maxRecordings = Math.max(1, 50 - (attempt - 1) * 10);
-              const limitedRecordings = recordingsToSave.slice(0, maxRecordings);
-              console.log(`Attempt ${attempt}: Saving ${limitedRecordings.length} recordings to storage...`);
-              
-              chrome.storage.local.set({ savedRecordings: limitedRecordings }, () => {
-                if (chrome.runtime.lastError) {
-                  const errorMsg = chrome.runtime.lastError.message || '';
-                  
-                  // If quota exceeded and we have more than 1 recording, try removing more
-                  if (errorMsg.includes('quota') && limitedRecordings.length > 1 && attempt < 5) {
-                    console.warn(`Quota exceeded on attempt ${attempt}, removing more old recordings...`);
-                    // Remove oldest recordings (from end of array) and try again
-                    const reducedRecordings = limitedRecordings.slice(0, Math.max(1, limitedRecordings.length - 5));
-                    trySave(reducedRecordings, attempt + 1);
-                  } else {
-                    const error = new Error(chrome.runtime.lastError.message);
-                    console.error('Error saving recording to storage:', error);
-                    reject(error);
-                  }
-                } else {
-                  console.log('Recording saved to storage successfully! ID:', recordingId);
-                  if (attempt > 1) {
-                    console.warn(`Saved after ${attempt} attempts by removing old recordings`);
-                  }
-                  resolve();
-                }
-              });
-            };
-            
-            trySave(savedRecordings);
-          } catch (error) {
-            console.error('Error processing recording save:', error);
-            reject(error);
-          }
-        });
-      });
+      // Save recording to IndexedDB (much larger capacity)
+      try {
+        await saveRecording(metadata, arrayBuffer);
+        console.log('Recording saved to IndexedDB successfully! ID:', recordingId);
+      } catch (error) {
+        console.error('Error saving recording to IndexedDB:', error);
+        throw error;
+      }
     } catch (error) {
       console.error('Failed to save recording:', error);
       throw error; // Re-throw to be caught by caller
@@ -657,23 +625,18 @@ const Popup: React.FC = () => {
               timestamp={recordingTimestamp}
               onDownload={audioBlob ? handleDownload : undefined}
               onDelete={audioBlob ? handleDelete : undefined}
-              onNameChange={(newName) => {
+              onNameChange={async (newName) => {
                 setRecordingName(newName);
-                // Update the name in recent recordings if this recording is already saved
+                // Update the name in IndexedDB if this recording is already saved
                 if (currentRecordingId) {
-                  chrome.storage.local.get(['savedRecordings'], (result) => {
-                    const savedRecordings = result.savedRecordings || [];
-                    // Find recording by ID
-                    const recordingIndex = savedRecordings.findIndex((r: any) => r.id === currentRecordingId);
-                    
-                    if (recordingIndex >= 0) {
-                      const format = preferences.format || 'webm';
-                      const extension = getFileExtension(format);
-                      const updatedName = newName.endsWith(`.${extension}`) ? newName : `${newName}.${extension}`;
-                      savedRecordings[recordingIndex].name = updatedName;
-                      chrome.storage.local.set({ savedRecordings: savedRecordings });
-                    }
-                  });
+                  try {
+                    const format = preferences.format || 'webm';
+                    const extension = getFileExtension(format);
+                    const updatedName = newName.endsWith(`.${extension}`) ? newName : `${newName}.${extension}`;
+                    await updateRecordingName(currentRecordingId, updatedName);
+                  } catch (error) {
+                    console.error('Error updating recording name:', error);
+                  }
                 }
               }}
             />
