@@ -17,6 +17,7 @@ const Popup: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'recording' | 'recent' | 'preferences'>('recording');
   const [recordingName, setRecordingName] = useState<string>('');
   const [recordingTimestamp, setRecordingTimestamp] = useState<Date>(new Date());
+  const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
@@ -184,8 +185,10 @@ const Popup: React.FC = () => {
     if (isRecording) {
       const stoppedBlob = await stopRecording();
       // Save recording to Recent Recordings after stopping
+      // Use the current recordingName (which may have been edited)
       if (stoppedBlob) {
-        await saveRecordingToHistory(stoppedBlob, recordingName || `recording ${formatDate(new Date())}`);
+        const nameToSave = recordingName || `recording ${formatDate(new Date())}`;
+        await saveRecordingToHistory(stoppedBlob, nameToSave);
       }
     } else {
       // Clear previous recording state before starting new one
@@ -238,14 +241,18 @@ const Popup: React.FC = () => {
       const arrayBuffer = await convertedBlob.arrayBuffer();
       const audioData = Array.from(new Uint8Array(arrayBuffer));
       
+      const recordingId = Date.now().toString();
       const recording = {
-        id: Date.now().toString(),
+        id: recordingId,
         name: recordingName,
         timestamp: new Date().toISOString(),
         duration: recordingDuration,
         audioData: audioData,
         format: format // Store current format preference
       };
+      
+      // Store the current recording ID so we can update it later if name is edited
+      setCurrentRecordingId(recordingId);
       
       chrome.storage.local.get(['savedRecordings'], (result) => {
         const savedRecordings = result.savedRecordings || [];
@@ -397,6 +404,7 @@ const Popup: React.FC = () => {
     setAudioBlob(null);
     setIsRecording(false);
     setRecordingDuration(0);
+    setCurrentRecordingId(null);
     
     // Clear background recording state and ensure streams are released
     try {
@@ -480,6 +488,25 @@ const Popup: React.FC = () => {
               timestamp={recordingTimestamp}
               onDownload={audioBlob ? handleDownload : undefined}
               onDelete={audioBlob ? handleDelete : undefined}
+              onNameChange={(newName) => {
+                setRecordingName(newName);
+                // Update the name in recent recordings if this recording is already saved
+                if (currentRecordingId) {
+                  chrome.storage.local.get(['savedRecordings'], (result) => {
+                    const savedRecordings = result.savedRecordings || [];
+                    // Find recording by ID
+                    const recordingIndex = savedRecordings.findIndex((r: any) => r.id === currentRecordingId);
+                    
+                    if (recordingIndex >= 0) {
+                      const format = preferences.format || 'webm';
+                      const extension = getFileExtension(format);
+                      const updatedName = newName.endsWith(`.${extension}`) ? newName : `${newName}.${extension}`;
+                      savedRecordings[recordingIndex].name = updatedName;
+                      chrome.storage.local.set({ savedRecordings: savedRecordings });
+                    }
+                  });
+                }
+              }}
             />
           )}
 
@@ -535,8 +562,12 @@ const Popup: React.FC = () => {
               const audioArray = new Uint8Array(recording.audioData);
               const blob = new Blob([audioArray], { type: 'audio/webm' });
               setAudioBlob(blob);
-              setRecordingName(recording.name);
+              // Set the name without extension for display
+              const nameWithoutExt = recording.name.replace(/\.[^/.]+$/, '');
+              setRecordingName(nameWithoutExt);
               setRecordingTimestamp(new Date(recording.timestamp));
+              // Store the recording ID so we can update it if name is edited
+              setCurrentRecordingId(recording.id);
               setActiveTab('recording');
             }}
             onDeleteRecording={handleDelete}
