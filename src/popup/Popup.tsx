@@ -58,41 +58,38 @@ const Popup: React.FC = () => {
     clearWaveform
   } = useWaveform();
 
-  // Check recording state on mount and handle background recording
+  // Load all initial data in a single batch to reduce startup time
   useEffect(() => {
-    checkRecordingState();
-    
-    // Migrate existing recordings from chrome.storage.local to IndexedDB on first load
-    chrome.storage.local.get(['migratedToIndexedDB'], async (result) => {
-      if (!result.migratedToIndexedDB) {
-        try {
-          const count = await migrateFromChromeStorage();
-          if (count > 0) {
-            console.log(`Migrated ${count} recordings to IndexedDB`);
-          }
-          chrome.storage.local.set({ migratedToIndexedDB: true });
-        } catch (error) {
-          console.error('Migration error:', error);
-        }
-      }
-    });
-  }, [checkRecordingState]);
-
-  // Load theme preference
-  useEffect(() => {
-    chrome.storage.local.get(['isLightMode'], (result) => {
+    // Batch all storage reads together
+    chrome.storage.local.get(['migratedToIndexedDB', 'isLightMode', 'preferences'], async (result) => {
+      // Set theme immediately (no async)
       if (result.isLightMode !== undefined) {
         setIsLightMode(result.isLightMode);
         document.body.classList.toggle('light-mode', result.isLightMode);
       }
-    });
-  }, []);
-
-  // Load preferences
-  useEffect(() => {
-    chrome.storage.local.get(['preferences'], (result) => {
+      
+      // Set preferences immediately
       if (result.preferences) {
         setPreferences(result.preferences);
+      }
+      
+      // Check recording state (non-blocking)
+      checkRecordingState();
+      
+      // Migrate in background (non-blocking, deferred)
+      if (!result.migratedToIndexedDB) {
+        // Defer migration to not block UI
+        setTimeout(async () => {
+          try {
+            const count = await migrateFromChromeStorage();
+            if (count > 0) {
+              console.log(`Migrated ${count} recordings to IndexedDB`);
+            }
+            chrome.storage.local.set({ migratedToIndexedDB: true });
+          } catch (error) {
+            console.error('Migration error:', error);
+          }
+        }, 100);
       }
     });
     
@@ -101,13 +98,17 @@ const Popup: React.FC = () => {
       if (changes.preferences) {
         setPreferences(changes.preferences.newValue || {});
       }
+      if (changes.isLightMode) {
+        setIsLightMode(changes.isLightMode.newValue || false);
+        document.body.classList.toggle('light-mode', changes.isLightMode.newValue || false);
+      }
     };
     chrome.storage.onChanged.addListener(listener);
     
     return () => {
       chrome.storage.onChanged.removeListener(listener);
     };
-  }, []);
+  }, [checkRecordingState]);
 
   // Update recording name and timestamp when recording starts
   useEffect(() => {

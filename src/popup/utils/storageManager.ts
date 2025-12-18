@@ -88,20 +88,25 @@ export async function getAllRecordingsMetadata(): Promise<RecordingMetadata[]> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readonly');
     const store = transaction.objectStore(STORE_NAME);
-    const index = store.index('timestamp');
-    const request = index.openCursor(null, 'prev'); // Sort by timestamp descending
+    // Use getAll() instead of cursor for better performance on small datasets
+    const request = store.getAll();
     
-    const recordings: RecordingMetadata[] = [];
-    
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-      if (cursor) {
-        const { id, name, timestamp, duration, format, channelMode } = cursor.value;
-        recordings.push({ id, name, timestamp, duration, format, channelMode });
-        cursor.continue();
-      } else {
-        resolve(recordings);
-      }
+    request.onsuccess = () => {
+      const allRecordings = request.result || [];
+      // Extract only metadata and sort by timestamp descending
+      const recordings: RecordingMetadata[] = allRecordings.map((rec: any) => ({
+        id: rec.id,
+        name: rec.name,
+        timestamp: rec.timestamp,
+        duration: rec.duration,
+        format: rec.format,
+        channelMode: rec.channelMode
+      }));
+      
+      // Sort by timestamp descending (most recent first)
+      recordings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+      resolve(recordings);
     };
     
     request.onerror = () => reject(request.error);

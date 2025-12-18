@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { processAudioWithSAM, isSAMAvailable } from '../utils/samIntegration';
+// SAM integration imports - will be used when packages are installed
+// import { processAudioWithSAM, isSAMAvailable } from '../utils/samIntegration';
 
 interface SAMProcessorProps {
   audioBlob: Blob | null;
@@ -14,16 +15,21 @@ export const SAMProcessor: React.FC<SAMProcessorProps> = ({ audioBlob, onProcess
   const [getResidual, setGetResidual] = useState(false);
 
   useEffect(() => {
-    // Check if SAM server is available
-    const checkAvailability = async () => {
-      const available = await isSAMAvailable();
-      setIsAvailable(available);
-    };
-    checkAvailability();
+    // SAM integration not yet configured - stub out availability check
+    // TODO: Uncomment when SAM packages are installed
+    // const checkAvailability = async () => {
+    //   const available = await isSAMAvailable();
+    //   setIsAvailable(available);
+    // };
+    // const timeout = setTimeout(checkAvailability, 200);
+    // const interval = setInterval(checkAvailability, 10000);
+    // return () => {
+    //   clearTimeout(timeout);
+    //   clearInterval(interval);
+    // };
     
-    // Check periodically
-    const interval = setInterval(checkAvailability, 5000);
-    return () => clearInterval(interval);
+    // For now, always show as unavailable
+    setIsAvailable(false);
   }, []);
 
   const handleProcess = async () => {
@@ -35,24 +41,29 @@ export const SAMProcessor: React.FC<SAMProcessorProps> = ({ audioBlob, onProcess
     setIsProcessing(true);
     setError(null);
 
-    try {
-      const result = await processAudioWithSAM({
-        audioBlob,
-        prompt: prompt.trim(),
-        getResidual
-      });
-
-      if (result.success && result.processedBlob) {
-        onProcessed(result.processedBlob);
-        setError(null);
-      } else {
-        setError(result.error || 'Processing failed');
-      }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during processing');
-    } finally {
-      setIsProcessing(false);
-    }
+    // SAM integration not yet configured - stub out processing
+    // TODO: Uncomment when SAM packages are installed
+    // try {
+    //   const result = await processAudioWithSAM({
+    //     audioBlob,
+    //     prompt: prompt.trim(),
+    //     getResidual
+    //   });
+    //   if (result.success && result.processedBlob) {
+    //     onProcessed(result.processedBlob);
+    //     setError(null);
+    //   } else {
+    //     setError(result.error || 'Processing failed');
+    //   }
+    // } catch (err: any) {
+    //   setError(err.message || 'An error occurred during processing');
+    // } finally {
+    //   setIsProcessing(false);
+    // }
+    
+    // For now, just show error that packages aren't installed
+    setError('SAM packages not installed. Please install SAM packages to use this feature.');
+    setIsProcessing(false);
   };
 
   if (!audioBlob) {
@@ -63,17 +74,15 @@ export const SAMProcessor: React.FC<SAMProcessorProps> = ({ audioBlob, onProcess
     <div className="sam-processor">
       <div className="sam-processor-header">
         <h3 className="sam-processor-title">SAM Audio Isolation</h3>
-        <div className={`sam-status ${isAvailable ? 'available' : 'unavailable'}`}>
-          {isAvailable ? '● Connected' : '○ Server Offline'}
+        <div className={`sam-status unavailable`}>
+          SAM integration not yet configured
         </div>
       </div>
       
-      {!isAvailable && (
-        <div className="sam-warning">
-          <p>SAM server is not running. Start it with:</p>
-          <code>python sam_server/server.py</code>
-        </div>
-      )}
+      <div className="sam-warning">
+        <p>SAM integration will be available after installing packages.</p>
+        <p>This feature requires SAM-Audio model and Python server setup.</p>
+      </div>
 
       <div className="sam-input-group">
         <label className="sam-label">Describe the sound to isolate:</label>
@@ -83,7 +92,8 @@ export const SAMProcessor: React.FC<SAMProcessorProps> = ({ audioBlob, onProcess
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="e.g., 'A man speaking', 'Guitar playing', 'Birds chirping'"
-          disabled={!isAvailable || isProcessing}
+          disabled={true}
+          title="SAM packages not installed"
         />
       </div>
 
@@ -93,7 +103,8 @@ export const SAMProcessor: React.FC<SAMProcessorProps> = ({ audioBlob, onProcess
             type="checkbox"
             checked={getResidual}
             onChange={(e) => setGetResidual(e.target.checked)}
-            disabled={!isAvailable || isProcessing}
+            disabled={true}
+            title="SAM packages not installed"
           />
           <span>Get residual (everything except target sound)</span>
         </label>
@@ -106,9 +117,10 @@ export const SAMProcessor: React.FC<SAMProcessorProps> = ({ audioBlob, onProcess
       <button
         className="sam-process-button"
         onClick={handleProcess}
-        disabled={!isAvailable || isProcessing || !prompt.trim()}
+        disabled={true}
+        title="SAM packages not installed"
       >
-        {isProcessing ? 'Processing...' : 'Process with SAM'}
+        Process with SAM
       </button>
     </div>
   );

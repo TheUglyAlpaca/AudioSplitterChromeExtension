@@ -1,7 +1,10 @@
 // Meta SAM audio isolation integration
 // Communicates with local Python server running SAM-Audio model
+// 
+// NOTE: This is boilerplate code. SAM packages are not yet installed.
+// When SAM packages are installed, uncomment the implementation code below.
 
-const SAM_SERVER_URL = 'http://localhost:5001';
+const SAM_SERVER_URL = 'http://localhost:5001'; // Keep for future use
 
 export interface SAMProcessOptions {
   audioBlob: Blob;
@@ -20,25 +23,32 @@ export interface SAMProcessResult {
 
 /**
  * Check if SAM server is available
+ * 
+ * TODO: Uncomment implementation when SAM packages are installed
  */
 export async function isSAMAvailable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${SAM_SERVER_URL}/health`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return data.model_loaded === true;
-    }
-    return false;
-  } catch (error) {
-    console.warn('SAM server not available:', error);
-    return false;
-  }
+  // Stub implementation - SAM packages not yet installed
+  console.log('SAM integration not yet configured - packages not installed');
+  return Promise.resolve(false);
+  
+  // TODO: Uncomment when SAM packages are installed
+  // try {
+  //   const response = await fetch(`${SAM_SERVER_URL}/health`, {
+  //     method: 'GET',
+  //     headers: {
+  //       'Content-Type': 'application/json'
+  //     }
+  //   });
+  //   
+  //   if (response.ok) {
+  //     const data = await response.json();
+  //     return data.model_loaded === true;
+  //   }
+  //   return false;
+  // } catch (error) {
+  //   console.warn('SAM server not available:', error);
+  //   return false;
+  // }
 }
 
 /**
@@ -105,88 +115,94 @@ async function blobToWav(blob: Blob): Promise<ArrayBuffer> {
  * 
  * @param options - Audio blob and prompt text
  * @returns Processed audio blob
+ * 
+ * TODO: Uncomment implementation when SAM packages are installed
  */
 export async function processAudioWithSAM(
   options: SAMProcessOptions
 ): Promise<SAMProcessResult> {
-  try {
-    // Check if server is available
-    const available = await isSAMAvailable();
-    if (!available) {
-      return {
-        processedBlob: options.audioBlob,
-        success: false,
-        error: 'SAM server is not available. Please start the Python server (python sam_server/server.py)'
-      };
-    }
-    
-    // Convert audio to WAV format
-    const wavBuffer = await blobToWav(options.audioBlob);
-    
-    // Convert to base64
-    const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(wavBuffer))
-    );
-    
-    // Determine endpoint
-    const endpoint = options.getResidual ? '/separate_residual' : '/separate';
-    
-    // Send to SAM server
-    const response = await fetch(`${SAM_SERVER_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        audio_data: base64Audio,
-        description: options.prompt,
-        predict_spans: options.predictSpans || false,
-        reranking_candidates: options.rerankingCandidates || 1
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      return {
-        processedBlob: options.audioBlob,
-        success: false,
-        error: errorData.error || `Server error: ${response.status}`
-      };
-    }
-    
-    const result = await response.json();
-    
-    if (!result.success) {
-      return {
-        processedBlob: options.audioBlob,
-        success: false,
-        error: result.error || 'Processing failed'
-      };
-    }
-    
-    // Decode base64 audio response
-    const audioBytes = Uint8Array.from(
-      atob(result.audio_data),
-      c => c.charCodeAt(0)
-    );
-    
-    // Create blob from processed audio
-    const processedBlob = new Blob([audioBytes], { type: 'audio/wav' });
-    
-    return {
-      processedBlob,
-      success: true,
-      sampleRate: result.sample_rate
-    };
-    
-  } catch (error: any) {
-    console.error('SAM processing error:', error);
-    return {
-      processedBlob: options.audioBlob,
-      success: false,
-      error: error.message || 'Failed to process audio with SAM'
-    };
-  }
+  // Stub implementation - SAM packages not yet installed
+  return Promise.reject(new Error('SAM packages not installed. Please install SAM packages to use this feature.'));
+  
+  // TODO: Uncomment when SAM packages are installed
+  // try {
+  //   // Check if server is available
+  //   const available = await isSAMAvailable();
+  //   if (!available) {
+  //     return {
+  //       processedBlob: options.audioBlob,
+  //       success: false,
+  //       error: 'SAM server is not available. Please start the Python server (python sam_server/server.py)'
+  //     };
+  //   }
+  //   
+  //   // Convert audio to WAV format
+  //   const wavBuffer = await blobToWav(options.audioBlob);
+  //   
+  //   // Convert to base64
+  //   const base64Audio = btoa(
+  //     String.fromCharCode(...new Uint8Array(wavBuffer))
+  //   );
+  //   
+  //   // Determine endpoint
+  //   const endpoint = options.getResidual ? '/separate_residual' : '/separate';
+  //   
+  //   // Send to SAM server
+  //   const response = await fetch(`${SAM_SERVER_URL}${endpoint}`, {
+  //     method: 'POST',
+  //     headers: {
+  //       'Content-Type': 'application/json'
+  //     },
+  //     body: JSON.stringify({
+  //       audio_data: base64Audio,
+  //       description: options.prompt,
+  //       predict_spans: options.predictSpans || false,
+  //       reranking_candidates: options.rerankingCandidates || 1
+  //     })
+  //   });
+  //   
+  //   if (!response.ok) {
+  //     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+  //     return {
+  //       processedBlob: options.audioBlob,
+  //       success: false,
+  //       error: errorData.error || `Server error: ${response.status}`
+  //     };
+  //   }
+  //   
+  //   const result = await response.json();
+  //   
+  //   if (!result.success) {
+  //     return {
+  //       processedBlob: options.audioBlob,
+  //       success: false,
+  //       error: result.error || 'Processing failed'
+  //     };
+  //   }
+  //   
+  //   // Decode base64 audio response
+  //   const audioBytes = Uint8Array.from(
+  //     atob(result.audio_data),
+  //     c => c.charCodeAt(0)
+  //   );
+  //   
+  //   // Create blob from processed audio
+  //   const processedBlob = new Blob([audioBytes], { type: 'audio/wav' });
+  //   
+  //   return {
+  //     processedBlob,
+  //     success: true,
+  //     sampleRate: result.sample_rate
+  //   };
+  //   
+  // } catch (error: any) {
+  //   console.error('SAM processing error:', error);
+  //   return {
+  //     processedBlob: options.audioBlob,
+  //     success: false,
+  //     error: error.message || 'Failed to process audio with SAM'
+  //   };
+  // }
 }
 
 

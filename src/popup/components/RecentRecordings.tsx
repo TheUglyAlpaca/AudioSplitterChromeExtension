@@ -18,7 +18,11 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
   const [fileSizes, setFileSizes] = useState<{ [id: string]: number }>({});
 
   useEffect(() => {
-    loadRecordings();
+    // Only load recordings when component is actually mounted and visible
+    // Defer initial load slightly to not block popup opening
+    const loadTimer = setTimeout(() => {
+      loadRecordings();
+    }, 50);
     
     // Listen for preference changes to reload recordings
     const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
@@ -30,11 +34,14 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
     chrome.storage.onChanged.addListener(listener);
     
     return () => {
+      clearTimeout(loadTimer);
       chrome.storage.onChanged.removeListener(listener);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // loadRecordings is stable, no need to include it
 
   const loadRecordings = async () => {
+    setLoading(true);
     try {
       // Load metadata from IndexedDB (fast, doesn't load audio data)
       const metadataList = await getAllRecordingsMetadata();
@@ -46,22 +53,54 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
       }));
       
       setRecordings(recordings);
+      setLoading(false); // Show UI immediately
       
-      // Load file sizes asynchronously (don't block UI)
-      const sizes: { [id: string]: number } = {};
-      for (const recording of recordings) {
-        try {
-          const fullRecording = await getRecording(recording.id);
-          if (fullRecording) {
-            sizes[recording.id] = fullRecording.audioData.byteLength;
+      // Load file sizes asynchronously in background (non-blocking, batched)
+      // Use requestIdleCallback if available, otherwise setTimeout
+      const loadSizes = () => {
+        const sizes: { [id: string]: number } = {};
+        let index = 0;
+        const batchSize = 5; // Process 5 at a time
+        
+        const processBatch = async () => {
+          const batch = recordings.slice(index, index + batchSize);
+          if (batch.length === 0) {
+            setFileSizes(sizes);
+            return;
           }
-        } catch (error) {
-          console.error(`Error getting size for ${recording.id}:`, error);
-        }
-      }
-      setFileSizes(sizes);
+          
+          await Promise.all(batch.map(async (recording) => {
+            try {
+              const fullRecording = await getRecording(recording.id);
+              if (fullRecording) {
+                sizes[recording.id] = fullRecording.audioData.byteLength;
+              }
+            } catch (error) {
+              console.error(`Error getting size for ${recording.id}:`, error);
+            }
+          }));
+          
+          index += batchSize;
+          // Update UI incrementally
+          setFileSizes({ ...sizes });
+          
+          // Process next batch
+          if (index < recordings.length) {
+            setTimeout(processBatch, 50); // Small delay to not block UI
+          } else {
+            setFileSizes(sizes);
+          }
+        };
+        
+        processBatch();
+      };
       
-      setLoading(false);
+      // Defer file size loading
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(loadSizes, { timeout: 1000 });
+      } else {
+        setTimeout(loadSizes, 100);
+      }
     } catch (error) {
       console.error('Error loading recordings:', error);
       setRecordings([]);
