@@ -11,6 +11,7 @@ interface WaveformProps {
   duration?: number;
   onSeek?: (time: number) => void;
   isRecording?: boolean;
+  channelMode?: 'mono' | 'stereo';
 }
 
 export const Waveform: React.FC<WaveformProps> = ({
@@ -23,7 +24,8 @@ export const Waveform: React.FC<WaveformProps> = ({
   currentTime = 0,
   duration = 0,
   onSeek,
-  isRecording = false
+  isRecording = false,
+  channelMode
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -146,6 +148,11 @@ export const Waveform: React.FC<WaveformProps> = ({
         (targetPosition - lastPositionRef.current) * easedProgress;
       
       // Redraw the waveform area around the position line for smooth updates
+      // Note: We need to use the current backgroundColor and barColor from props
+      // These are captured in the closure, so we need to access them from the component props
+      // For now, we'll use the refs or re-read from canvas context
+      const currentBgColor = backgroundColor;
+      const currentBarColor = barColor;
       const barCount = Math.floor(data.length / zoom);
       const barWidth = scaledWidth / barCount;
       const maxBarHeight = scaledHeight * 0.8;
@@ -153,7 +160,7 @@ export const Waveform: React.FC<WaveformProps> = ({
       // Clear area around old position
       if (lastPositionRef.current >= 0) {
         const clearWidth = Math.max(3, barWidth * 3);
-        ctx.fillStyle = backgroundColor;
+        ctx.fillStyle = currentBgColor;
         ctx.fillRect(
           Math.max(0, lastPositionRef.current - clearWidth / 2),
           0,
@@ -161,7 +168,7 @@ export const Waveform: React.FC<WaveformProps> = ({
           scaledHeight
         );
         // Redraw bars in cleared area
-        ctx.fillStyle = barColor;
+        ctx.fillStyle = currentBarColor;
         const startBar = Math.max(0, Math.floor((lastPositionRef.current - clearWidth / 2) / barWidth));
         const endBar = Math.min(barCount, Math.ceil((lastPositionRef.current + clearWidth / 2) / barWidth));
         for (let i = startBar; i < endBar; i++) {
@@ -238,6 +245,11 @@ export const Waveform: React.FC<WaveformProps> = ({
         justifyContent: 'center'
       }}
     >
+      {channelMode && (
+        <div className="waveform-channel-indicator">
+          {channelMode.toUpperCase()}
+        </div>
+      )}
       <div
         style={{
           transform: `scale(${scale})`,

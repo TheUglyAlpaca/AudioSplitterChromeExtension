@@ -319,7 +319,8 @@ const Popup: React.FC = () => {
         timestamp: new Date().toISOString(),
         duration: recordingDuration,
         audioData: audioData,
-        format: format // Store current format preference
+        format: format, // Store current format preference
+        channelMode: preferences.channelMode || 'stereo' // Store channel mode
       };
       
       console.log('Recording object created, ID:', recordingId, 'Duration:', recordingDuration);
@@ -642,6 +643,9 @@ const Popup: React.FC = () => {
               duration={displayDuration}
               onSeek={handleWaveformSeek}
               isRecording={isRecording}
+              channelMode={preferences.channelMode as 'mono' | 'stereo' | undefined}
+              barColor={isLightMode ? '#ff9500' : '#ff9500'}
+              backgroundColor={isLightMode ? '#f5f5f5' : '#2a2a2a'}
             />
           </div>
           

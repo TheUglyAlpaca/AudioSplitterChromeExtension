@@ -9,6 +9,7 @@ interface Recording {
   duration: number;
   audioData: number[];
   format?: string;
+  channelMode?: string;
 }
 
 interface RecentRecordingsProps {
@@ -103,6 +104,16 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const getFileSize = (recording: Recording): number => {
+    return recording.audioData ? recording.audioData.length : 0;
+  };
+
   if (loading) {
     return (
       <div className="recent-recordings">
@@ -128,7 +139,21 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
               <div className="recording-status-dot"></div>
             )}
             <div className="recording-info" onClick={() => onSelectRecording(recording)}>
-              <div className="recording-name">{recording.name.replace(/\.[^/.]+$/, '')}</div>
+              <div className="recording-name-row">
+                <span className="recording-name">{recording.name.replace(/\.[^/.]+$/, '')}</span>
+                <div className="recording-channel-indicator" title={recording.channelMode === 'mono' ? 'Mono' : 'Stereo'}>
+                  {recording.channelMode === 'mono' ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                      <circle cx="6" cy="6" r="5" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor">
+                      <circle cx="4" cy="6" r="5" />
+                      <circle cx="12" cy="6" r="5" />
+                    </svg>
+                  )}
+                </div>
+              </div>
               <div className="recording-date-secondary">{formatDate(recording.timestamp)}</div>
             </div>
             <div className="recording-actions">
@@ -170,7 +195,10 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
                 </svg>
               </button>
             </div>
-            <div className="recording-duration">{formatTime(recording.duration)}</div>
+            <div className="recording-meta-right">
+              <div className="recording-file-size">{formatFileSize(getFileSize(recording))}</div>
+              <div className="recording-duration">{formatTime(recording.duration)}</div>
+            </div>
           </div>
         ))}
       </div>

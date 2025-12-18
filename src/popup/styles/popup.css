@@ -166,6 +166,28 @@ body {
   overflow: hidden;
   border: 1px solid #2a2a2a;
   flex-shrink: 0;
+  position: relative;
+}
+
+.waveform-channel-indicator {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  z-index: 10;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+.light-mode .waveform-channel-indicator {
+  background-color: rgba(255, 255, 255, 0.8);
+  color: rgba(0, 0, 0, 0.7);
 }
 
 .playback-info {
@@ -370,6 +392,13 @@ body {
   gap: 4px;
 }
 
+.recording-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .recording-name {
   font-size: 14px;
   font-weight: 500;
@@ -377,6 +406,15 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.recording-channel-indicator {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
 }
 
 .recording-date-secondary {
@@ -397,14 +435,27 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.recording-meta-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: 12px;
+  white-space: nowrap;
+  min-width: 45px;
+}
+
+.recording-file-size {
+  font-size: 11px;
+  color: #666;
+  font-weight: 400;
+}
+
 .recording-duration {
   font-size: 12px;
   color: #888;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  margin-left: 12px;
-  min-width: 45px;
-  text-align: right;
 }
 
 .recording-actions {
@@ -696,5 +747,13 @@ body.light-mode,
 
 .light-mode .toggle-switch input:checked + .toggle-slider {
   background-color: #4ade80;
+}
+
+.light-mode .recording-channel-indicator {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.light-mode .recording-file-size {
+  color: #999;
 }
 
