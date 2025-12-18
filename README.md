@@ -2,7 +2,9 @@
 
 A Chrome extension for recording browser audio output with waveform visualization, playback controls, and format conversion capabilities.
 
-![Extension Screenshot](./screenshot.png)
+![Extension Screenshot - Recording View](./newscreenshot1.png)
+
+![Extension Screenshot - Recent Recordings View](./newscreenshot2.png)
 
 ## Features
 
