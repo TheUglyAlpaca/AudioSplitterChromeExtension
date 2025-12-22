@@ -229,6 +229,25 @@ body {
   flex-shrink: 0;
 }
 
+.zoom-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zoom-level-text {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #888;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: monospace;
+}
+
 .control-button {
   background: none;
   border: none;
@@ -322,9 +341,12 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
   }
+
   50% {
     box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
   }
@@ -544,6 +566,11 @@ body {
   color: #ff4444;
 }
 
+.action-button.ai-button:hover {
+  background-color: #5b21b6;
+  color: #ffe4e6;
+}
+
 /* Preferences */
 .preferences-wrapper {
   display: flex;
@@ -639,16 +666,16 @@ body {
   transition: 0.3s;
 }
 
-.toggle-switch input:checked + .toggle-slider {
+.toggle-switch input:checked+.toggle-slider {
   background-color: #4ade80;
 }
 
-.toggle-switch input:checked + .toggle-slider:before {
+.toggle-switch input:checked+.toggle-slider:before {
   transform: translateX(20px);
   background-color: #ffffff;
 }
 
-.toggle-switch input:focus + .toggle-slider {
+.toggle-switch input:focus+.toggle-slider {
   box-shadow: 0 0 1px #4ade80;
 }
 
@@ -705,6 +732,10 @@ body.light-mode,
   background-color: rgba(0, 0, 0, 0.05);
 }
 
+.light-mode .recording-item:hover {
+  background-color: #f9f9f9;
+}
+
 .light-mode .recording-name-input {
   color: #1a1a1a;
   background-color: rgba(0, 0, 0, 0.05);
@@ -728,7 +759,7 @@ body.light-mode,
   background-color: #f0f0f0;
 }
 
-/* Buy us a coffee button */
+/* Buy me a coffee button */
 .buy-coffee-button {
   position: fixed;
   bottom: 8px;
@@ -801,7 +832,7 @@ body.light-mode,
   background-color: #ffffff;
 }
 
-.light-mode .toggle-switch input:checked + .toggle-slider {
+.light-mode .toggle-switch input:checked+.toggle-slider {
   background-color: #4ade80;
 }
 
@@ -1143,4 +1174,3 @@ body.light-mode,
 .light-mode .ai-load-button:hover {
   background-color: #d0d0d0;
 }
-

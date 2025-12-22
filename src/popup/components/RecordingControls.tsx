@@ -9,6 +9,7 @@ interface RecordingControlsProps {
   onReset: () => void;
   isPlaying: boolean;
   isLooping: boolean;
+  zoom: number;
 }
 
 export const RecordingControls: React.FC<RecordingControlsProps> = ({
@@ -19,24 +20,28 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   onLoop,
   onReset,
   isPlaying,
-  isLooping
+  isLooping,
+  zoom
 }) => {
   return (
     <div className="recording-controls">
-      <button className="control-button" onClick={onZoomOut} title="Zoom Out">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" fill="none" />
-          <line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" strokeWidth="2" />
-        </svg>
-      </button>
-      <button className="control-button" onClick={onZoomIn} title="Zoom In">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" fill="none" />
-          <line x1="10" y1="6" x2="10" y2="14" stroke="currentColor" strokeWidth="2" />
-          <line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" strokeWidth="2" />
-        </svg>
-      </button>
-      <button 
+      <div className="zoom-controls">
+        <span className="zoom-level-text">{Math.round(zoom * 100)}%</span>
+        <button className="control-button" onClick={onZoomOut} title="Zoom Out">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" fill="none" />
+            <line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        </button>
+        <button className="control-button" onClick={onZoomIn} title="Zoom In">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" fill="none" />
+            <line x1="10" y1="6" x2="10" y2="14" stroke="currentColor" strokeWidth="2" />
+            <line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        </button>
+      </div>
+      <button
         className={`control-button play-button ${isPlaying ? 'playing' : ''}`}
         onClick={isPlaying ? onPause : onPlay}
         title={isPlaying ? 'Pause' : 'Play'}
@@ -52,7 +57,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           </svg>
         )}
       </button>
-      <button 
+      <button
         className={`control-button ${isLooping ? 'active' : ''}`}
         onClick={onLoop}
         title="Loop"

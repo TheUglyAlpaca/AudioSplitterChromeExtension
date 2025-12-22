@@ -5,7 +5,9 @@ import { useWaveform } from './hooks/useWaveform';
 import { formatTime, formatDate, downloadAudio } from './utils/audioUtils';
 import { getFileExtension } from './utils/formatUtils';
 import { convertAudioFormat } from './utils/audioConverter';
-import { saveRecording, migrateFromChromeStorage, updateRecordingName } from './utils/storageManager';
+import { saveRecording, migrateFromChromeStorage, updateRecordingName, deleteRecording } from './utils/storageManager';
+
+
 import { Waveform } from './components/Waveform';
 import { AudioInfo } from './components/AudioInfo';
 import { RecordingControls } from './components/RecordingControls';
@@ -463,11 +465,11 @@ const Popup: React.FC = () => {
   };
 
   const handleZoomIn = () => {
-    setZoom(Math.min(zoom * 1.5, 10));
+    setZoom(Math.min(zoom + 1, 7));
   };
 
   const handleZoomOut = () => {
-    setZoom(Math.max(zoom / 1.5, 0.1));
+    setZoom(Math.max(zoom - 1, 1));
   };
 
   const handleDownload = async () => {
@@ -553,6 +555,16 @@ const Popup: React.FC = () => {
       await chrome.runtime.sendMessage({ action: 'stopCapture' });
     } catch (error) {
       console.error('Failed to clear recording in background:', error);
+    }
+
+    // Delete from storage if it was a saved recording
+    if (currentRecordingId) {
+      try {
+        await deleteRecording(currentRecordingId);
+        console.log('Deleted recording from storage:', currentRecordingId);
+      } catch (error) {
+        console.error('Error deleting recording from storage:', error);
+      }
     }
 
     // Clear storage to ensure no stale stream IDs
@@ -687,6 +699,7 @@ const Popup: React.FC = () => {
             onReset={handleReset}
             isPlaying={isPlaying}
             isLooping={isLooping}
+            zoom={zoom}
           />
 
           <div className="record-button-container">
@@ -795,7 +808,7 @@ const Popup: React.FC = () => {
           onClick={() => alert('In development')}
           title="Buy us a coffee"
         >
-          ☕ Buy us a coffee
+          ☕ Buy me a coffee
         </button>
       )}
     </div>

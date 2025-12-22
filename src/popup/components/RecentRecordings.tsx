@@ -25,7 +25,7 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
     const loadTimer = setTimeout(() => {
       loadRecordings();
     }, 50);
-    
+
     // Listen for preference changes to reload recordings
     const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
       if (changes.preferences && changes.preferences.newValue) {
@@ -34,7 +34,7 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
       }
     };
     chrome.storage.onChanged.addListener(listener);
-    
+
     return () => {
       clearTimeout(loadTimer);
       chrome.storage.onChanged.removeListener(listener);
@@ -47,30 +47,30 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
     try {
       // Load metadata from IndexedDB (fast, doesn't load audio data)
       const metadataList = await getAllRecordingsMetadata();
-      
+
       // Convert to Recording format for compatibility
       const recordings: Recording[] = metadataList.map(meta => ({
         ...meta,
         audioData: [] // Audio data loaded on demand
       }));
-      
+
       setRecordings(recordings);
       setLoading(false); // Show UI immediately
-      
+
       // Load file sizes asynchronously in background (non-blocking, batched)
       // Use requestIdleCallback if available, otherwise setTimeout
       const loadSizes = () => {
         const sizes: { [id: string]: number } = {};
         let index = 0;
         const batchSize = 5; // Process 5 at a time
-        
+
         const processBatch = async () => {
           const batch = recordings.slice(index, index + batchSize);
           if (batch.length === 0) {
             setFileSizes(sizes);
             return;
           }
-          
+
           await Promise.all(batch.map(async (recording) => {
             try {
               const fullRecording = await getRecording(recording.id);
@@ -81,11 +81,11 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
               console.error(`Error getting size for ${recording.id}:`, error);
             }
           }));
-          
+
           index += batchSize;
           // Update UI incrementally
           setFileSizes({ ...sizes });
-          
+
           // Process next batch
           if (index < recordings.length) {
             setTimeout(processBatch, 50); // Small delay to not block UI
@@ -93,10 +93,10 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
             setFileSizes(sizes);
           }
         };
-        
+
         processBatch();
       };
-      
+
       // Defer file size loading
       if ('requestIdleCallback' in window) {
         requestIdleCallback(loadSizes, { timeout: 1000 });
@@ -115,7 +115,7 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
       await deleteRecording(id);
       // Remove from local state
       setRecordings(recordings.filter(r => r.id !== id));
-      
+
       // Reset extension state when deleting
       if (onDeleteRecording) {
         onDeleteRecording();
@@ -133,7 +133,7 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
         console.error('Recording not found');
         return;
       }
-      
+
       // Always use current format preference (not the stored format)
       // This ensures all downloads use the current format setting
       const result = await chrome.storage.local.get(['preferences']);
@@ -141,22 +141,22 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
       const sampleRate = result.preferences?.sampleRate ? parseInt(result.preferences.sampleRate) : undefined;
       const channelMode = result.preferences?.channelMode || undefined;
       const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
-      
+
       // Convert ArrayBuffer to Blob
       const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
-      
+
       // Convert audio to the target format with sample rate and channel mode
       const convertedBlob = await convertAudioFormat(originalBlob, format, sampleRate, targetChannels);
-      
+
       // Get file extension based on current format preference
       const extension = getFileExtension(format);
-      
+
       // Update filename with correct extension
       let filename = recording.name;
       // Remove any existing extension
       const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
       filename = `${nameWithoutExt}.${extension}`;
-      
+
       const url = URL.createObjectURL(convertedBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -243,8 +243,8 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
               </div>
             </div>
             <div className="recording-actions">
-              <button 
-                className="action-button" 
+              <button
+                className="action-button"
                 onClick={async (e) => {
                   e.stopPropagation();
                   // Load full recording from IndexedDB when selected
@@ -270,8 +270,8 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
                 </svg>
               </button>
               {onOpenAI && (
-                <button 
-                  className="action-button" 
+                <button
+                  className="action-button ai-button"
                   onClick={async (e) => {
                     e.stopPropagation();
                     // Load full recording from IndexedDB when selected
@@ -295,8 +295,8 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
                   <BrainIcon width={16} height={16} />
                 </button>
               )}
-              <button 
-                className="action-button" 
+              <button
+                className="action-button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDownload(recording);
@@ -308,8 +308,8 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
                   <path d="M3 15a1 1 0 011 1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
                 </svg>
               </button>
-              <button 
-                className="action-button delete-button" 
+              <button
+                className="action-button delete-button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDelete(recording.id);
