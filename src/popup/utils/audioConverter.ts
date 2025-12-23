@@ -87,9 +87,9 @@ function convertChannels(
 }
 
 /**
- * Encodes an AudioBuffer to a WAV Blob
+ * Encodes an AudioBuffer to a WAV Blob with configurable bit depth
  */
-function audioBufferToWav(audioBuffer: AudioBuffer): Blob {
+function audioBufferToWav(audioBuffer: AudioBuffer, bitDepth: number = 16): Blob {
   const sampleRate = audioBuffer.sampleRate;
   const numberOfChannels = audioBuffer.numberOfChannels;
   const length = audioBuffer.length;
@@ -102,15 +102,46 @@ function audioBufferToWav(audioBuffer: AudioBuffer): Blob {
     }
   }
 
-  // Convert to 16-bit PCM
-  const pcm = new Int16Array(interleaved.length);
-  for (let i = 0; i < interleaved.length; i++) {
-    const s = Math.max(-1, Math.min(1, interleaved[i]));
-    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  // Convert to PCM based on bit depth
+  let pcmData: ArrayBufferLike;
+  let bytesPerSample: number;
+
+  if (bitDepth === 16) {
+    bytesPerSample = 2;
+    const pcm = new Int16Array(interleaved.length);
+    for (let i = 0; i < interleaved.length; i++) {
+      const s = Math.max(-1, Math.min(1, interleaved[i]));
+      pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    pcmData = pcm.buffer;
+  } else if (bitDepth === 24) {
+    bytesPerSample = 3;
+    const pcm = new Uint8Array(interleaved.length * 3);
+    for (let i = 0; i < interleaved.length; i++) {
+      const s = Math.max(-1, Math.min(1, interleaved[i]));
+      const val = s < 0 ? s * 0x800000 : s * 0x7FFFFF;
+      const intVal = Math.round(val);
+      const offset = i * 3;
+      pcm[offset] = intVal & 0xFF;
+      pcm[offset + 1] = (intVal >> 8) & 0xFF;
+      pcm[offset + 2] = (intVal >> 16) & 0xFF;
+    }
+    pcmData = pcm.buffer;
+  } else if (bitDepth === 32) {
+    bytesPerSample = 4;
+    const pcm = new Int32Array(interleaved.length);
+    for (let i = 0; i < interleaved.length; i++) {
+      const s = Math.max(-1, Math.min(1, interleaved[i]));
+      pcm[i] = s < 0 ? s * 0x80000000 : s * 0x7FFFFFFF;
+    }
+    pcmData = pcm.buffer;
+  } else {
+    throw new Error(`Unsupported bit depth: ${bitDepth}`);
   }
 
   // Create WAV file
-  const wavBuffer = new ArrayBuffer(44 + pcm.length * 2);
+  const dataSize = pcmData.byteLength;
+  const wavBuffer = new ArrayBuffer(44 + dataSize);
   const view = new DataView(wavBuffer);
 
   // WAV header
@@ -121,22 +152,22 @@ function audioBufferToWav(audioBuffer: AudioBuffer): Blob {
   };
 
   writeString(0, 'RIFF');
-  view.setUint32(4, 36 + pcm.length * 2, true);
+  view.setUint32(4, 36 + dataSize, true);
   writeString(8, 'WAVE');
   writeString(12, 'fmt ');
   view.setUint32(16, 16, true); // fmt chunk size
   view.setUint16(20, 1, true); // audio format (PCM)
   view.setUint16(22, numberOfChannels, true);
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numberOfChannels * 2, true); // byte rate
-  view.setUint16(32, numberOfChannels * 2, true); // block align
-  view.setUint16(34, 16, true); // bits per sample
+  view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true); // byte rate
+  view.setUint16(32, numberOfChannels * bytesPerSample, true); // block align
+  view.setUint16(34, bitDepth, true); // bits per sample
   writeString(36, 'data');
-  view.setUint32(40, pcm.length * 2, true);
+  view.setUint32(40, dataSize, true);
 
   // Write PCM data
-  const pcmView = new Int16Array(wavBuffer, 44);
-  pcmView.set(pcm);
+  const pcmView = new Uint8Array(wavBuffer, 44);
+  pcmView.set(new Uint8Array(pcmData));
 
   return new Blob([wavBuffer], { type: 'audio/wav' });
 }
@@ -147,7 +178,8 @@ function audioBufferToWav(audioBuffer: AudioBuffer): Blob {
 export async function convertToWav(
   blob: Blob,
   targetSampleRate?: number,
-  targetChannels?: number
+  targetChannels?: number,
+  bitDepth: number = 16
 ): Promise<Blob> {
   const arrayBuffer = await blob.arrayBuffer();
   const audioContext = new AudioContext();
@@ -163,7 +195,7 @@ export async function convertToWav(
     audioBuffer = convertChannels(audioBuffer, targetChannels);
   }
 
-  return audioBufferToWav(audioBuffer);
+  return audioBufferToWav(audioBuffer, bitDepth);
 }
 
 /**
@@ -172,7 +204,8 @@ export async function convertToWav(
 export async function cropAudioBlob(
   blob: Blob,
   startTime: number,
-  endTime: number
+  endTime: number,
+  bitDepth: number = 16
 ): Promise<Blob> {
   const arrayBuffer = await blob.arrayBuffer();
   const audioContext = new AudioContext();
@@ -205,7 +238,7 @@ export async function cropAudioBlob(
     }
   }
 
-  return audioBufferToWav(newBuffer);
+  return audioBufferToWav(newBuffer, bitDepth);
 }
 
 /**
@@ -215,33 +248,45 @@ export async function convertAudioFormat(
   blob: Blob,
   targetFormat: string,
   targetSampleRate?: number,
-  targetChannels?: number
+  targetChannels?: number,
+  bitDepth: number = 16
 ): Promise<Blob> {
   const format = targetFormat.toLowerCase();
 
-  // For formats that need conversion (wav, mp3), or if sample rate/channel conversion is needed
-  // we need to go through WAV conversion first
-  const needsConversion = format === 'wav' || format === 'mp3' || targetSampleRate || targetChannels;
+  // For formats that need conversion (wav, mp3, ogg), or if sample rate/channel conversion is needed
+  const needsConversion = format === 'wav' || format === 'mp3' || format === 'ogg' || targetSampleRate || targetChannels;
 
   if (needsConversion) {
-    // Convert to WAV with sample rate and channel conversion
-    let wavBlob = await convertToWav(blob, targetSampleRate, targetChannels);
+    // First, decode the audio to get an AudioBuffer
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioContext = new AudioContext();
+    let audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-    // If target format is WAV, return it
+    // Apply sample rate conversion if specified
+    if (targetSampleRate && audioBuffer.sampleRate !== targetSampleRate) {
+      audioBuffer = resampleAudioBuffer(audioBuffer, targetSampleRate);
+    }
+
+    // Apply channel conversion if specified
+    if (targetChannels && audioBuffer.numberOfChannels !== targetChannels) {
+      audioBuffer = convertChannels(audioBuffer, targetChannels);
+    }
+
+    // Convert based on target format
     if (format === 'wav') {
-      return wavBlob;
+      return audioBufferToWav(audioBuffer, bitDepth);
     }
 
-    // For MP3, we'd need a library like lamejs
-    // For now, convert to WAV as a fallback
     if (format === 'mp3') {
-      console.warn('MP3 conversion not yet implemented, converting to WAV instead');
-      return wavBlob;
+      return await convertToMp3(audioBuffer);
     }
 
-    // For other formats, if we needed conversion, return the converted WAV
-    // Otherwise, we'd need to re-encode to the target format
-    return wavBlob;
+    if (format === 'ogg') {
+      return await convertToOgg(audioBuffer);
+    }
+
+    // Fallback to WAV for unknown formats
+    return audioBufferToWav(audioBuffer, bitDepth);
   }
 
   // If already in the target format and no conversion needed, return as-is
@@ -257,3 +302,119 @@ export async function convertAudioFormat(
   return blob;
 }
 
+/**
+ * Converts an AudioBuffer to MP3 format using lamejs
+ */
+async function convertToMp3(audioBuffer: AudioBuffer): Promise<Blob> {
+  // Dynamically import lamejs
+  const lamejs = await import('lamejs');
+
+  const sampleRate = audioBuffer.sampleRate;
+  const numberOfChannels = audioBuffer.numberOfChannels;
+  const length = audioBuffer.length;
+
+  // Convert float samples to 16-bit PCM
+  const leftChannel = audioBuffer.getChannelData(0);
+  const rightChannel = numberOfChannels > 1 ? audioBuffer.getChannelData(1) : leftChannel;
+
+  const left = new Int16Array(length);
+  const right = new Int16Array(length);
+
+  for (let i = 0; i < length; i++) {
+    left[i] = Math.max(-32768, Math.min(32767, leftChannel[i] * 32768));
+    right[i] = Math.max(-32768, Math.min(32767, rightChannel[i] * 32768));
+  }
+
+  // Initialize MP3 encoder
+  const mp3encoder = new lamejs.Mp3Encoder(numberOfChannels, sampleRate, 128); // 128 kbps
+  const mp3Data: Int8Array[] = [];
+
+  // Encode in chunks
+  const sampleBlockSize = 1152;
+  for (let i = 0; i < length; i += sampleBlockSize) {
+    const leftChunk = left.subarray(i, i + sampleBlockSize);
+    const rightChunk = right.subarray(i, i + sampleBlockSize);
+    const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  // Flush remaining data
+  const mp3buf = mp3encoder.flush();
+  if (mp3buf.length > 0) {
+    mp3Data.push(mp3buf);
+  }
+
+  // Combine all chunks into a single Uint8Array for Blob compatibility
+  const totalLength = mp3Data.reduce((acc, arr) => acc + arr.length, 0);
+  const combined = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of mp3Data) {
+    combined.set(new Uint8Array(chunk.buffer), offset);
+    offset += chunk.length;
+  }
+
+  return new Blob([combined], { type: 'audio/mp3' });
+}
+
+/**
+ * Converts an AudioBuffer to OGG format using MediaRecorder
+ */
+async function convertToOgg(audioBuffer: AudioBuffer): Promise<Blob> {
+  // Create an offline audio context to render the buffer
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    audioBuffer.sampleRate
+  );
+
+  // Create a buffer source
+  const source = offlineContext.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(offlineContext.destination);
+  source.start();
+
+  // Render the audio
+  const renderedBuffer = await offlineContext.startRendering();
+
+  // Create a MediaStream from the rendered buffer
+  const audioContext = new AudioContext();
+  const mediaStreamDestination = audioContext.createMediaStreamDestination();
+  const bufferSource = audioContext.createBufferSource();
+  bufferSource.buffer = renderedBuffer;
+  bufferSource.connect(mediaStreamDestination);
+
+  // Use MediaRecorder to encode to OGG
+  return new Promise((resolve, reject) => {
+    const chunks: Blob[] = [];
+    const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
+      mimeType: 'audio/ogg; codecs=opus'
+    });
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
+      resolve(blob);
+    };
+
+    mediaRecorder.onerror = (e) => {
+      reject(new Error('MediaRecorder error'));
+    };
+
+    mediaRecorder.start();
+    bufferSource.start();
+
+    // Stop recording after the buffer duration
+    setTimeout(() => {
+      mediaRecorder.stop();
+      bufferSource.stop();
+      audioContext.close();
+    }, (renderedBuffer.duration * 1000) + 100);
+  });
+}

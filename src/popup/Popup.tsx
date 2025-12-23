@@ -716,7 +716,7 @@ const Popup: React.FC = () => {
   return (
     <div className={`popup-container ${theme !== 'dark' ? `${theme}-mode` : ''}`} style={{ position: 'relative' }}>
       <header className="header">
-        <h1 className="app-title">Sample</h1>
+        <h1 className="app-title">Chrome Recorder</h1>
         <div className="header-actions">
           <button className="icon-button" title={`Current Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`} onClick={handleThemeToggle}>
             {theme === 'light' ? (
@@ -775,11 +775,6 @@ const Popup: React.FC = () => {
                 <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
               </svg>
             )}
-          </button>
-          <button className="icon-button" title="Menu">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
-            </svg>
           </button>
         </div>
       </header>

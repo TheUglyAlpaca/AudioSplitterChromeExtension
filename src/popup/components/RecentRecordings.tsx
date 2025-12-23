@@ -243,8 +243,16 @@ export const RecentRecordings: React.FC<RecentRecordingsProps> = ({ onSelectReco
               </div>
               <div className="recording-date-row">
                 <span className="recording-date-secondary">{formatDate(recording.timestamp)}</span>
-                <span className="recording-channel-text">
-                  ({(recording.channelMode || 'stereo').toUpperCase()})
+                <span className="recording-channel-icon">
+                  {(recording.channelMode || 'stereo') === 'mono' ? (
+                    <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor">
+                      <path d="M127 210c-44.735 0-81-36.265-81-81s36.265-81 81-81 81 36.265 81 81-36.265 81-81 81zm1-21c34.794 0 63-27.087 63-60.5S162.794 68 128 68s-63 27.087-63 60.5S93.206 189 128 189z" fillRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor">
+                      <path d="M128.802 95.03c-9.229-9.369-22.39-15.228-37-15.228-27.92 0-50.555 21.402-50.555 47.803 0 26.4 22.634 47.802 50.555 47.802 14.711 0 27.954-5.94 37.193-15.423-12.232-16.88-14.177-19.888-14.177-32.38 0-12.016 5.924-18.458 14.19-31.142 6.753 13.293 13.629 19.445 13.629 31.538 0 12.802-6.03 20.525-13.402 32.614 9.206 9.115 22.185 14.793 36.567 14.793 27.922 0 50.556-21.401 50.556-47.802 0-26.4-22.634-47.803-50.556-47.803-14.608 0-27.77 5.86-37 15.228zM128 75.374C138.501 68.202 151.252 64 165 64c35.899 0 65 28.654 65 64 0 35.346-29.101 64-65 64-13.748 0-26.499-4.202-37-11.374C117.499 187.798 104.748 192 91 192c-35.899 0-65-28.654-65-64 0-35.346 29.101-64 65-64 13.748 0 26.499 4.202 37 11.374z" fillRule="evenodd" />
+                    </svg>
+                  )}
                 </span>
               </div>
             </div>
