@@ -627,7 +627,7 @@ const Popup: React.FC = () => {
           className={`tab ${activeTab === 'recent' ? 'active' : ''}`}
           onClick={() => setActiveTab('recent')}
         >
-          Recent Recordings
+          My Recordings
         </button>
         <button
           className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
@@ -639,7 +639,7 @@ const Popup: React.FC = () => {
           className={`tab ${activeTab === 'preferences' ? 'active' : ''}`}
           onClick={() => setActiveTab('preferences')}
         >
-          Preferences
+          Settings
         </button>
       </nav>
 
