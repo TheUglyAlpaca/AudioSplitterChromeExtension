@@ -690,9 +690,28 @@ const Popup: React.FC = () => {
     chrome.storage.local.set({ theme: newTheme });
   };
 
-  const displayDuration = isRecording ? recordingDuration : (audioRef.current?.duration || 0);
-  const displayTime = isRecording ? recordingDuration : currentPlayTime;
-  const displayStartTime = startTime;
+  // Calculate effective display values respecting trim
+  const totalDuration = audioRef.current?.duration || 0;
+  const effectiveEnd = (trimEnd > 0 && trimEnd < totalDuration) ? trimEnd : totalDuration;
+  const effectiveStart = trimStart > 0 ? trimStart : 0;
+  const isTrimmed = trimStart > 0 || (trimEnd > 0 && trimEnd < totalDuration);
+
+  const displayDuration = isRecording ? recordingDuration : (isTrimmed ? effectiveEnd - effectiveStart : totalDuration);
+  // For time, show relative time within the trim (starts at 0)
+  const displayTime = isRecording ? recordingDuration : (isTrimmed ? Math.max(0, currentPlayTime - effectiveStart) : currentPlayTime);
+  // Start time is the trim start (or 0)
+  const displayStartTime = isRecording ? 0 : effectiveStart;
+
+  const getThemeColor = () => {
+    switch (theme) {
+      case 'light': return '#3b82f6';
+      case 'midnight': return '#38bdf8';
+      case 'forest': return '#fbbf24';
+      case 'dark':
+      default:
+        return '#4ade80';
+    }
+  };
 
   return (
     <div className={`popup-container ${theme !== 'dark' ? `${theme}-mode` : ''}`} style={{ position: 'relative' }}>
@@ -822,12 +841,12 @@ const Popup: React.FC = () => {
               data={waveformData?.data || null}
               height={110}
               zoom={zoom}
-              currentTime={displayTime}
-              duration={displayDuration}
+              currentTime={isRecording ? recordingDuration : currentPlayTime}
+              duration={isRecording ? recordingDuration : totalDuration}
               onSeek={handleWaveformSeek}
               isRecording={isRecording}
               channelMode={currentRecordingChannelMode || (preferences.channelMode as 'mono' | 'stereo' | undefined)}
-              barColor={'#ff9500'}
+              barColor={getThemeColor()}
               backgroundColor={
                 theme === 'light' ? '#f5f5f5' :
                   theme === 'midnight' ? '#1e293b' :
@@ -835,7 +854,7 @@ const Popup: React.FC = () => {
                       '#1f1f1f'
               }
               trimStart={trimStart}
-              trimEnd={trimEnd || displayDuration}
+              trimEnd={trimEnd || (isRecording ? recordingDuration : totalDuration)}
               onTrimChange={handleTrimChange}
             />
           </div>

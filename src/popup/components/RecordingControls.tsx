@@ -33,6 +33,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           </svg>
         </button>
 
+        <span className="zoom-level">{Math.round(zoom * 100)}%</span>
+
         <button className="control-button" onClick={onZoomIn} title="Zoom In">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" fill="none" />
@@ -40,7 +42,6 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
             <line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" strokeWidth="2" />
           </svg>
         </button>
-        <span className="zoom-level">{Math.round(zoom * 100)}%</span>
       </div>
 
       <button
