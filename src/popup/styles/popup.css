@@ -9,7 +9,7 @@
 html,
 body {
   width: 450px;
-  height: 450px;
+  height: 500px;
   overflow: hidden;
   margin: 0;
   padding: 0;
@@ -17,12 +17,59 @@ body {
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background-color: #1a1a1a;
-  color: #ffffff;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+:root {
+  /* Default Dark Theme */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #1f1f1f;
+  --bg-hover: #333333;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --border-color: #333333;
+  --accent-color: #ff0000;
+  --bg-input: rgba(255, 255, 255, 0.1);
+  --toggle-active: #4ade80;
+}
+
+body.light-mode {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-hover: #e0e0e0;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --bg-input: rgba(0, 0, 0, 0.05);
+  --toggle-active: #3b82f6;
+}
+
+body.midnight-mode {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-hover: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-color: #334155;
+  --bg-input: rgba(255, 255, 255, 0.1);
+  --toggle-active: #38bdf8;
+}
+
+body.forest-mode {
+  --bg-primary: #052e16;
+  --bg-secondary: #064e3b;
+  --bg-hover: #065f46;
+  --text-primary: #ecfdf5;
+  --text-secondary: #6ee7b7;
+  --border-color: #065f46;
+  --bg-input: rgba(255, 255, 255, 0.1);
+  --toggle-active: #fbbf24;
+}
+
 
 #root {
   height: 100%;
@@ -32,7 +79,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #1a1a1a;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 /* Header */
@@ -41,13 +89,13 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .app-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   letter-spacing: -0.5px;
 }
 
@@ -59,7 +107,7 @@ body {
 .icon-button {
   background: none;
   border: none;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -70,20 +118,20 @@ body {
 }
 
 .icon-button:hover {
-  background-color: #333;
+  background-color: var(--bg-hover);
 }
 
 /* Tabs */
 .tabs {
   display: flex;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
   padding: 0 16px;
 }
 
 .tab {
   background: none;
   border: none;
-  color: #ffffff;
+  color: var(--text-primary);
   padding: 12px 16px;
   cursor: pointer;
   font-size: 14px;
@@ -96,7 +144,7 @@ body {
 }
 
 .tab.active {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .tab.active::after {
@@ -106,17 +154,18 @@ body {
   left: 0;
   right: 0;
   height: 2px;
-  background-color: #ffffff;
+  background-color: var(--text-primary);
 }
 
 /* Recording Content */
 .recording-content {
   display: flex;
   flex-direction: column;
-  padding: 12px 16px;
-  gap: 10px;
+  padding: 10px 16px;
+  gap: 8px;
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 
@@ -125,13 +174,13 @@ body {
   justify-content: space-between;
   align-items: center;
   font-size: 13px;
-  color: #ffffff;
+  color: var(--text-primary);
   flex-shrink: 0;
   padding: 4px 0;
 }
 
 .recording-name {
-  color: #ffffff;
+  color: var(--text-primary);
   padding: 2px 4px;
   border-radius: 2px;
   transition: background-color 0.2s;
@@ -139,14 +188,14 @@ body {
 }
 
 .recording-name:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--bg-input);
 }
 
 .recording-name-input {
   font-size: 13px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 4px;
   padding: 2px 6px;
@@ -169,12 +218,12 @@ body {
 /* Waveform Container */
 .waveform-container {
   width: 100%;
-  height: 130px;
-  background-color: #1f1f1f;
+  height: 110px;
+  background-color: var(--bg-secondary);
   border-radius: 12px;
   margin: 8px 0;
   overflow: hidden;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--border-color);
   flex-shrink: 0;
   position: relative;
 }
@@ -204,7 +253,7 @@ body {
   text-align: center;
   padding: 2px 0;
   font-size: 9px;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 400;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -217,7 +266,7 @@ body {
   justify-content: space-between;
   width: 100%;
   font-size: 11px;
-  color: #b0b0b0;
+  color: var(--text-secondary);
   padding: 4px 0;
   font-weight: 500;
   letter-spacing: 0.3px;
@@ -225,7 +274,7 @@ body {
 }
 
 .time-label {
-  color: #b0b0b0;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -255,7 +304,7 @@ body {
   left: 50%;
   transform: translateX(-50%);
   font-size: 10px;
-  color: #888;
+  color: var(--text-secondary);
   font-family: monospace;
   pointer-events: none;
   white-space: nowrap;
@@ -265,7 +314,7 @@ body {
 .control-button {
   background: none;
   border: none;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   padding: 8px;
   display: flex;
@@ -278,25 +327,25 @@ body {
 }
 
 .control-button:hover {
-  background-color: #333;
+  background-color: var(--bg-hover);
 }
 
 .control-button.active {
-  background-color: #444;
+  background-color: var(--bg-hover);
 }
 
 .play-button {
-  background-color: #3a3a3a;
+  background-color: var(--bg-hover);
   width: 44px;
   height: 44px;
 }
 
 .play-button:hover {
-  background-color: #4a4a4a;
+  background-color: var(--border-color);
 }
 
 .play-button.playing {
-  background-color: #4a4a4a;
+  background-color: var(--border-color);
 }
 
 /* Record Button */
@@ -304,7 +353,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 12px 0;
+  padding: 8px 0;
   flex-shrink: 0;
   border-top: none;
   margin-top: auto;
@@ -312,8 +361,8 @@ body {
 }
 
 .record-button {
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: 3px solid #ff4444;
   background-color: #ff0000;
@@ -340,7 +389,7 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: #ffffff;
+  background-color: var(--text-primary);
 }
 
 /* Stop Button (when recording) */
@@ -351,7 +400,7 @@ body {
 .stop-button-inner {
   width: 20px;
   height: 20px;
-  background-color: #ffffff;
+  background-color: var(--text-primary);
   border-radius: 2px;
 }
 
@@ -386,7 +435,7 @@ body {
 }
 
 .recent-recordings .empty-state {
-  color: #666;
+  color: var(--text-secondary);
   text-align: center;
   padding: 40px 20px;
   font-size: 14px;
@@ -407,7 +456,7 @@ body {
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid var(--bg-input);
   border-top-color: #ff9500;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -421,7 +470,7 @@ body {
 }
 
 .loading-text {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 400;
   letter-spacing: 0.2px;
@@ -434,7 +483,7 @@ body {
 }
 
 .light-mode .loading-text {
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .recordings-list {
@@ -447,13 +496,13 @@ body {
   display: flex;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
   position: relative;
   transition: background-color 0.2s ease;
 }
 
 .recording-item:hover {
-  background-color: #242424;
+  background-color: var(--bg-hover);
 }
 
 .recording-status-dot {
@@ -485,7 +534,7 @@ body {
 .recording-name {
   font-size: 12px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -505,13 +554,13 @@ body {
 
 .recording-date-secondary {
   font-size: 12px;
-  color: #888;
+  color: var(--text-secondary);
   font-weight: 400;
 }
 
 .recording-channel-text {
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -521,7 +570,7 @@ body {
   display: flex;
   gap: 12px;
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
   font-weight: 400;
 }
 
@@ -544,13 +593,13 @@ body {
 
 .recording-file-size {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 400;
 }
 
 .recording-duration {
   font-size: 12px;
-  color: #888;
+  color: var(--text-secondary);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
@@ -565,7 +614,7 @@ body {
 .action-button {
   background: none;
   border: none;
-  color: #888;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px;
   display: flex;
@@ -578,8 +627,8 @@ body {
 }
 
 .action-button:hover {
-  background-color: #333;
-  color: #ffffff;
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .action-button.delete-button:hover {
@@ -619,16 +668,16 @@ body {
 
 .preference-label {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 400;
   text-transform: lowercase;
 }
 
 .preference-select {
-  background-color: #1a1a1a;
-  border: 1px solid #ffffff;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   padding: 6px 24px 6px 8px;
   cursor: pointer;
@@ -641,7 +690,7 @@ body {
 }
 
 .preference-select:hover {
-  background-color: #242424;
+  background-color: var(--bg-hover);
 }
 
 .preference-select:focus {
@@ -670,7 +719,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #333;
+  background-color: var(--bg-hover);
   border-radius: 24px;
   transition: 0.3s;
 }
@@ -682,13 +731,13 @@ body {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: #666;
+  background-color: var(--text-secondary);
   border-radius: 50%;
   transition: 0.3s;
 }
 
 .toggle-switch input:checked+.toggle-slider {
-  background-color: #4ade80;
+  background-color: var(--toggle-active);
 }
 
 .toggle-switch input:checked+.toggle-slider:before {
@@ -697,87 +746,7 @@ body {
 }
 
 .toggle-switch input:focus+.toggle-slider {
-  box-shadow: 0 0 1px #4ade80;
-}
-
-/* Light Mode */
-body.light-mode,
-.light-mode .popup-container {
-  background-color: #ffffff;
-  color: #1a1a1a;
-}
-
-.light-mode .header {
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.light-mode .app-title {
-  color: #1a1a1a;
-}
-
-.light-mode .icon-button {
-  color: #1a1a1a;
-}
-
-.light-mode .icon-button:hover {
-  background-color: #f0f0f0;
-}
-
-.light-mode .tabs {
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.light-mode .tab {
-  color: #1a1a1a;
-}
-
-.light-mode .tab:hover {
-  color: #666;
-}
-
-.light-mode .tab.active {
-  color: #1a1a1a;
-}
-
-.light-mode .tab.active::after {
-  background-color: #1a1a1a;
-}
-
-.light-mode .audio-info,
-.light-mode .recording-name,
-.light-mode .time-label {
-  color: #1a1a1a;
-}
-
-.light-mode .recording-name:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.light-mode .recording-item:hover {
-  background-color: #f9f9f9;
-}
-
-.light-mode .recording-name-input {
-  color: #1a1a1a;
-  background-color: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.2);
-}
-
-.light-mode .recording-name-input:focus {
-  background-color: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.4);
-}
-
-.light-mode .waveform-container {
-  background-color: #f5f5f5;
-}
-
-.light-mode .control-button {
-  color: #1a1a1a;
-}
-
-.light-mode .control-button:hover {
-  background-color: #f0f0f0;
+  box-shadow: 0 0 1px var(--toggle-active);
 }
 
 /* Buy me a coffee button */
@@ -787,7 +756,7 @@ body.light-mode,
   right: 12px;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   font-size: 11px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   cursor: pointer;
@@ -798,77 +767,13 @@ body.light-mode,
 }
 
 .buy-coffee-button:hover {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.light-mode .buy-coffee-button {
-  color: rgba(0, 0, 0, 0.5);
-}
-
-.light-mode .buy-coffee-button:hover {
-  color: rgba(0, 0, 0, 0.8);
-}
-
-.light-mode .control-button.active {
-  background-color: #e0e0e0;
-}
-
-.light-mode .play-button {
-  background-color: #e8e8e8;
-}
-
-.light-mode .play-button:hover {
-  background-color: #d8d8d8;
-}
-
-.light-mode .play-button.playing {
-  background-color: #d8d8d8;
-}
-
-.light-mode .recent-recordings,
-.light-mode .preferences {
-  color: #666;
-}
-
-.light-mode .preference-label {
-  color: #1a1a1a;
-}
-
-.light-mode .preference-select {
-  background-color: #ffffff;
-  border-color: #1a1a1a;
-  color: #1a1a1a;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-
-.light-mode .preference-select:hover {
-  background-color: #f5f5f5;
-}
-
-.light-mode .toggle-slider {
-  background-color: #e0e0e0;
-}
-
-.light-mode .toggle-slider:before {
-  background-color: #ffffff;
-}
-
-.light-mode .toggle-switch input:checked+.toggle-slider {
-  background-color: #4ade80;
-}
-
-.light-mode .recording-channel-text {
-  color: #999;
-}
-
-.light-mode .recording-file-size {
-  color: #999;
+  color: var(--text-primary);
 }
 
 /* SAM Audio Processor */
 .sam-processor {
-  background-color: #242424;
-  border: 1px solid #333;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
   margin: 8px 0;
@@ -885,7 +790,7 @@ body.light-mode,
 .sam-processor-title {
   font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -935,7 +840,7 @@ body.light-mode,
 .sam-label {
   display: block;
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -943,10 +848,10 @@ body.light-mode,
 .sam-prompt-input {
   width: 100%;
   padding: 8px 10px;
-  background-color: #1a1a1a;
-  border: 1px solid #333;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 12px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   outline: none;
@@ -971,7 +876,7 @@ body.light-mode,
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
@@ -1018,59 +923,6 @@ body.light-mode,
   cursor: not-allowed;
 }
 
-.light-mode .sam-processor {
-  background-color: #f5f5f5;
-  border-color: #e0e0e0;
-}
-
-.light-mode .sam-processor-title {
-  color: #1a1a1a;
-}
-
-.light-mode .sam-status.available {
-  color: #4ade80;
-  background-color: rgba(74, 222, 128, 0.15);
-}
-
-.light-mode .sam-status.unavailable {
-  color: #ff4444;
-  background-color: rgba(255, 68, 68, 0.15);
-}
-
-.light-mode .sam-warning {
-  background-color: rgba(255, 193, 7, 0.15);
-  border-color: rgba(255, 193, 7, 0.4);
-  color: #b8860b;
-}
-
-.light-mode .sam-warning code {
-  background-color: rgba(0, 0, 0, 0.1);
-}
-
-.light-mode .sam-label {
-  color: #666;
-}
-
-.light-mode .sam-prompt-input {
-  background-color: #ffffff;
-  border-color: #e0e0e0;
-  color: #1a1a1a;
-}
-
-.light-mode .sam-prompt-input:focus {
-  border-color: #ff9500;
-}
-
-.light-mode .sam-checkbox-label {
-  color: #666;
-}
-
-.light-mode .sam-error {
-  background-color: rgba(255, 68, 68, 0.15);
-  border-color: rgba(255, 68, 68, 0.4);
-  color: #cc0000;
-}
-
 /* AI Tab Content */
 .ai-content {
   display: flex;
@@ -1100,13 +952,13 @@ body.light-mode,
 .ai-empty-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .ai-empty-description {
   font-size: 13px;
-  color: #888;
+  color: var(--text-secondary);
   margin: 0 0 20px 0;
   max-width: 280px;
   line-height: 1.5;
@@ -1140,24 +992,24 @@ body.light-mode,
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  background-color: #242424;
-  border: 1px solid #333;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .ai-audio-name {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   flex: 1;
 }
 
 .ai-load-button {
   padding: 6px 12px;
-  background-color: #3a3a3a;
-  border: 1px solid #444;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -1167,70 +1019,4 @@ body.light-mode,
 
 .ai-load-button:hover {
   background-color: #4a4a4a;
-}
-
-.light-mode .ai-empty-title {
-  color: #1a1a1a;
-}
-
-.light-mode .ai-empty-description {
-  color: #666;
-}
-
-.light-mode .ai-audio-info {
-  background-color: #f5f5f5;
-  border-color: #e0e0e0;
-}
-
-.light-mode .ai-audio-name {
-  color: #1a1a1a;
-}
-
-.light-mode .ai-load-button {
-  background-color: #e0e0e0;
-  border-color: #d0d0d0;
-  color: #1a1a1a;
-}
-
-.light-mode .ai-load-button:hover {
-  background-color: #d0d0d0;
-}
-
-/* Recent Recordings Light Mode Overrides */
-.light-mode .action-button {
-  color: #000000;
-}
-
-.light-mode .action-button:hover {
-  background-color: #e0e0e0;
-  color: #000000;
-}
-
-.light-mode .recording-name {
-  color: #000000;
-}
-
-.light-mode .recording-date-secondary {
-  color: #444444;
-}
-
-.light-mode .recording-duration {
-  color: #555555;
-}
-
-/* Override previous light mode settings for these to be darker */
-.light-mode .recording-channel-text {
-  color: #666666;
-}
-
-.light-mode .recording-file-size {
-  color: #666666;
-}
-
-.light-mode .recording-item:hover {
-  background-color: #f0f0f0;
-}
-
-.light-mode .recording-item {
-  border-bottom-color: #e0e0e0;
 }

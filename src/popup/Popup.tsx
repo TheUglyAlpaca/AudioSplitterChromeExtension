@@ -29,7 +29,7 @@ const Popup: React.FC = () => {
   const [isLooping, setIsLooping] = useState(false);
   const [currentPlayTime, setCurrentPlayTime] = useState(0);
   const [startTime, setStartTime] = useState(0);
-  const [isLightMode, setIsLightMode] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light' | 'midnight' | 'forest'>('dark');
   const [preferences, setPreferences] = useState<{
     format?: string;
     sampleRate?: string;
@@ -65,11 +65,19 @@ const Popup: React.FC = () => {
   // Load all initial data in a single batch to reduce startup time
   useEffect(() => {
     // Batch all storage reads together
-    chrome.storage.local.get(['migratedToIndexedDB', 'isLightMode', 'preferences'], async (result) => {
+    chrome.storage.local.get(['migratedToIndexedDB', 'isLightMode', 'theme', 'preferences'], async (result) => {
       // Set theme immediately (no async)
-      if (result.isLightMode !== undefined) {
-        setIsLightMode(result.isLightMode);
-        document.body.classList.toggle('light-mode', result.isLightMode);
+      let initialTheme: 'dark' | 'light' | 'midnight' | 'forest' = 'dark';
+      if (result.theme) {
+        initialTheme = result.theme;
+      } else if (result.isLightMode) {
+        initialTheme = 'light';
+      }
+
+      setTheme(initialTheme);
+      document.body.className = '';
+      if (initialTheme !== 'dark') {
+        document.body.classList.add(`${initialTheme}-mode`);
       }
 
       // Set preferences immediately
@@ -102,9 +110,13 @@ const Popup: React.FC = () => {
       if (changes.preferences) {
         setPreferences(changes.preferences.newValue || {});
       }
-      if (changes.isLightMode) {
-        setIsLightMode(changes.isLightMode.newValue || false);
-        document.body.classList.toggle('light-mode', changes.isLightMode.newValue || false);
+      if (changes.theme) {
+        const newTheme = changes.theme.newValue || 'dark';
+        setTheme(newTheme);
+        document.body.className = '';
+        if (newTheme !== 'dark') {
+          document.body.classList.add(`${newTheme}-mode`);
+        }
       }
     };
     chrome.storage.onChanged.addListener(listener);
@@ -582,10 +594,17 @@ const Popup: React.FC = () => {
   };
 
   const handleThemeToggle = () => {
-    const newMode = !isLightMode;
-    setIsLightMode(newMode);
-    document.body.classList.toggle('light-mode', newMode);
-    chrome.storage.local.set({ isLightMode: newMode });
+    const themes: ('dark' | 'light' | 'midnight' | 'forest')[] = ['dark', 'light', 'midnight', 'forest'];
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    const newTheme = themes[nextIndex];
+
+    setTheme(newTheme);
+    document.body.className = '';
+    if (newTheme !== 'dark') {
+      document.body.classList.add(`${newTheme}-mode`);
+    }
+    chrome.storage.local.set({ theme: newTheme });
   };
 
   const displayDuration = isRecording ? recordingDuration : (audioRef.current?.duration || 0);
@@ -593,18 +612,32 @@ const Popup: React.FC = () => {
   const displayStartTime = startTime;
 
   return (
-    <div className={`popup-container ${isLightMode ? 'light-mode' : ''}`} style={{ position: 'relative' }}>
+    <div className={`popup-container ${theme !== 'dark' ? `${theme}-mode` : ''}`} style={{ position: 'relative' }}>
       <header className="header">
         <h1 className="app-title">Sample</h1>
         <div className="header-actions">
-          <button className="icon-button" title={isLightMode ? "Switch to Dark Mode" : "Switch to Light Mode"} onClick={handleThemeToggle}>
-            {isLightMode ? (
+          <button className="icon-button" title={`Current Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`} onClick={handleThemeToggle}>
+            {theme === 'light' ? (
+              // Sun Icon
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+              </svg>
+            ) : theme === 'midnight' ? (
+              // Wave Icon for Midnight
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 10c0-1.846.942-3.486 2.4-4.438.414 1.258 1.488 2.222 2.822 2.4a3.003 3.003 0 002.556-1.026 3.003 3.003 0 002.556 1.026c1.334-.178 2.408-1.142 2.822-2.4C16.658 6.514 17.6 8.154 17.6 10s-.942 3.486-2.4 4.438c-.414-1.258-1.488-2.222-2.822-2.4a3.003 3.003 0 00-2.556 1.026 3.003 3.003 0 00-2.556-1.026c-1.334.178-2.408 1.142-2.822 2.4C2.942 13.486 2 11.846 2 10z" />
+              </svg>
+            ) : theme === 'forest' ? (
+              // Tree Icon for Forest
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10.293 2.293a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 4.414V14a1 1 0 11-2 0V4.414L5.707 7.707a1 1 0 01-1.414-1.414l4-4z" clipRule="evenodd" />
+                <path d="M5.995 11a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1z" />
+                <path d="M14 11a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1z" />
               </svg>
             ) : (
+              // Moon Icon for Dark (Default)
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fillRule="evenodd" />
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
               </svg>
             )}
           </button>
@@ -671,14 +704,20 @@ const Popup: React.FC = () => {
           <div className="waveform-container">
             <Waveform
               data={waveformData?.data || null}
+              height={110}
               zoom={zoom}
               currentTime={displayTime}
               duration={displayDuration}
               onSeek={handleWaveformSeek}
               isRecording={isRecording}
               channelMode={currentRecordingChannelMode || (preferences.channelMode as 'mono' | 'stereo' | undefined)}
-              barColor={isLightMode ? '#ff9500' : '#ff9500'}
-              backgroundColor={isLightMode ? '#f5f5f5' : '#2a2a2a'}
+              barColor={'#ff9500'}
+              backgroundColor={
+                theme === 'light' ? '#f5f5f5' :
+                  theme === 'midnight' ? '#1e293b' :
+                    theme === 'forest' ? '#064e3b' :
+                      '#1f1f1f'
+              }
             />
           </div>
 
