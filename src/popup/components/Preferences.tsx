@@ -208,7 +208,7 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
 
   return (
     <div className="preferences">
-      <div className="preference-item">
+      <div className="preference-item" title="Choose between mono (1 channel) or stereo (2 channels) audio">
         <label className="preference-label">mono/stereo</label>
         <select
           className="preference-select"
@@ -220,7 +220,7 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         </select>
       </div>
 
-      <div className="preference-item">
+      <div className="preference-item" title="Audio file format for exports (WAV: lossless, WebM/MP3/OGG: compressed)">
         <label className="preference-label">file type</label>
         <select
           className="preference-select"
@@ -234,7 +234,7 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         </select>
       </div>
 
-      <div className="preference-item">
+      <div className="preference-item" title="Number of audio samples per second (higher = better quality, larger file)">
         <label className="preference-label">sample rate</label>
         <select
           className="preference-select"
@@ -248,7 +248,7 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         </select>
       </div>
 
-      <div className="preference-item">
+      <div className="preference-item" title="Bit depth controls dynamic range (16-bit: CD quality, 24-bit: studio quality, 32-bit: maximum precision). Only applies to WAV files.">
         <label className="preference-label">bit depth</label>
         <select
           className="preference-select"
@@ -261,7 +261,7 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         </select>
       </div>
 
-      <div className="preference-item">
+      <div className="preference-item" title="Automatically adjust volume to maximize loudness without clipping">
         <label className="preference-label">normalize audio</label>
         <label className="toggle-switch">
           <input
@@ -273,7 +273,7 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         </label>
       </div>
 
-      <div className="preference-item">
+      <div className="preference-item" title="Use the browser tab's title as the default recording name">
         <label className="preference-label">use tab title as sample name</label>
         <label className="toggle-switch">
           <input
