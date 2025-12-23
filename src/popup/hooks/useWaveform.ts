@@ -11,6 +11,7 @@ interface UseWaveformReturn {
   analyzeAudio: (audioBlob: Blob) => Promise<void>;
   analyzeStream: (stream: MediaStream) => Promise<void>;
   clearWaveform: () => void;
+  listenForRemoteUpdates: () => () => void;
 }
 
 export function useWaveform(): UseWaveformReturn {
@@ -42,28 +43,28 @@ export function useWaveform(): UseWaveformReturn {
     try {
       const arrayBuffer = await audioBlob.arrayBuffer();
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-      
+
       // Get raw audio data for waveform visualization
       const channelData = audioBuffer.getChannelData(0); // Get first channel
       const samples = channelData.length;
-      
+
       // Downsample for visualization (take every Nth sample)
       const targetSamples = 1000; // Number of bars to show
       const step = Math.max(1, Math.floor(samples / targetSamples));
       const waveformArray = new Uint8Array(targetSamples);
-      
+
       for (let i = 0; i < targetSamples; i++) {
         const start = i * step;
         const end = Math.min(start + step, samples);
         let sum = 0;
         let max = 0;
-        
+
         for (let j = start; j < end; j++) {
           const abs = Math.abs(channelData[j]);
           sum += abs;
           max = Math.max(max, abs);
         }
-        
+
         // Normalize to 0-255 range
         const avg = sum / (end - start);
         waveformArray[i] = Math.min(255, Math.floor((avg + max) / 2 * 255));
@@ -117,11 +118,31 @@ export function useWaveform(): UseWaveformReturn {
     setWaveformData(null);
   }, []);
 
+  const listenForRemoteUpdates = useCallback(() => {
+    const listener = (message: any) => {
+      if (message.action === 'waveformUpdate' && message.data) {
+        setWaveformData({
+          data: new Uint8Array(message.data),
+          sampleRate: 44100, // Default for visualization
+          duration: 0
+        });
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(listener);
+
+    // Return cleanup function
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener);
+    };
+  }, []);
+
   return {
     waveformData,
     analyzeAudio,
     analyzeStream,
-    clearWaveform
+    clearWaveform,
+    listenForRemoteUpdates
   };
 }
 

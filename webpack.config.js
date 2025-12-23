@@ -5,7 +5,8 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 module.exports = {
   entry: {
     popup: './src/popup/Popup.tsx',
-    background: './src/background/background.ts'
+    background: './src/background/background.ts',
+    offscreen: './src/offscreen/offscreen.ts'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -33,6 +34,11 @@ module.exports = {
       template: './public/popup.html',
       filename: 'popup.html',
       chunks: ['popup']
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/offscreen/offscreen.html',
+      filename: 'offscreen.html',
+      chunks: ['offscreen']
     }),
     new CopyWebpackPlugin({
       patterns: [

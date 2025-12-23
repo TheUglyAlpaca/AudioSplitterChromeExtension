@@ -58,7 +58,8 @@ const Popup: React.FC = () => {
     waveformData,
     analyzeAudio,
     analyzeStream,
-    clearWaveform
+    clearWaveform,
+    listenForRemoteUpdates
   } = useWaveform();
 
   // Load all initial data in a single batch to reduce startup time
@@ -133,13 +134,17 @@ const Popup: React.FC = () => {
       const stream = getAudioStream();
       if (stream) {
         analyzeStream(stream);
+      } else {
+        // Use remote waveform data from offscreen recorder
+        const cleanup = listenForRemoteUpdates();
+        return cleanup;
       }
     } else {
       // When recording stops, clear the live stream waveform
       // The full waveform will be shown from the audioBlob
       clearWaveform();
     }
-  }, [isRecording, getAudioStream, analyzeStream, clearWaveform]);
+  }, [isRecording, getAudioStream, analyzeStream, clearWaveform, listenForRemoteUpdates]);
 
   // Analyze audio blob when recording stops - show full waveform
   useEffect(() => {

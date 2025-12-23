@@ -39,7 +39,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       const response = await chrome.runtime.sendMessage({ action: 'getRecordingState' });
       if (response.success && response.isRecording) {
         setIsRecording(true);
-        
+
         // Get the recording start time from storage to calculate accurate duration
         chrome.storage.local.get(['recordingStartTime', 'recordingStreamId'], (result) => {
           if (result.recordingStartTime) {
@@ -52,20 +52,20 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             setDuration(0);
             chrome.storage.local.set({ recordingStartTime: Date.now() });
           }
-          
+
           // Start duration timer for background recording
           durationIntervalRef.current = window.setInterval(() => {
             const elapsed = (Date.now() - startTimeRef.current) / 1000;
             setDuration(elapsed);
           }, 10);
-          
+
           // If we have a streamId, try to reconnect to the stream for visualization
           if (result.recordingStreamId) {
             // Don't try to reconnect - just let it record in background
             // The stream is already being recorded in background worker
           }
         });
-        
+
         // Try to get existing recording data (partial recording)
         const dataResponse = await chrome.runtime.sendMessage({ action: 'getRecordingData' });
         if (dataResponse.success && dataResponse.hasData) {
@@ -88,28 +88,28 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       const prefsResult = await chrome.storage.local.get(['preferences']);
       const format = prefsResult.preferences?.format || 'webm';
       const mimeType = getMimeTypeForFormat(format);
-      
+
       // CRITICAL: First, ensure any previous recording is fully stopped and cleaned up
       // This must happen before attempting to start a new recording
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
         streamRef.current = null;
       }
-      
+
       // Stop any active recording in background and clear all streams
       try {
         await chrome.runtime.sendMessage({ action: 'clearRecording' });
       } catch (error) {
         console.warn('Error clearing previous recording:', error);
       }
-      
+
       // Wait longer to ensure previous stream is fully released
       // Chrome's tabCapture API needs time to fully release the stream
       await new Promise(resolve => setTimeout(resolve, 800));
-      
+
       // Clear any previous recording state from storage
       await chrome.storage.local.remove(['recordingStreamId', 'recordingTabId', 'recordingStartTime', 'recordingChunks']);
-      
+
       // Double-check that storage is cleared
       const checkStorage = await chrome.storage.local.get(['recordingStreamId', 'recordingTabId']);
       if (checkStorage.recordingStreamId || checkStorage.recordingTabId) {
@@ -117,7 +117,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         await new Promise(resolve => setTimeout(resolve, 500));
         await chrome.storage.local.remove(['recordingStreamId', 'recordingTabId', 'recordingStartTime', 'recordingChunks']);
       }
-      
+
       // Get current active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab.id) {
@@ -137,65 +137,65 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       // Get streamId from background response
       const streamId = response.streamId;
       const method = response.method || 'tab'; // 'desktop' or 'tab'
-      
+
       if (!streamId) {
         throw new Error('No stream ID received from background');
       }
 
-      // Get stream for recording and waveform visualization
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            // @ts-ignore - chromeMediaSource is a Chrome-specific constraint
-            mandatory: {
-              chromeMediaSource: method === 'desktop' ? 'desktop' : 'tab',
-              chromeMediaSourceId: streamId
-            }
-          } as any,
-          video: false
-        });
+      // Send streamId to background to start recording there (Offscreen)
+      const bgResponse = await chrome.runtime.sendMessage({
+        action: 'startRecordingWithStream',
+        streamId: streamId
+      });
 
-        // Workaround for tabCapture muting: Create an AudioContext and play the captured audio
-        // while also recording it. This way the user can still hear the audio through the extension.
-        if (method === 'tab') {
-          try {
-            const audioContext = new AudioContext();
-            const source = audioContext.createMediaStreamSource(stream);
-            const destination = audioContext.createMediaStreamDestination();
-            
-            // Split the stream: one path for recording, one for playback
-            source.connect(destination);
-            // Play the audio through the extension's audio context so user can still hear it
-            source.connect(audioContext.destination);
-            
-            // Use the destination stream for recording
-            streamRef.current = destination.stream;
-            
-            // Store audioContext reference so it stays alive
-            (window as any).__recordingAudioContext = audioContext;
-          } catch (audioError) {
-            console.warn('Could not create audio split, using stream directly:', audioError);
-            // Fallback: use stream directly (will mute, but at least recording works)
-            streamRef.current = stream;
-          }
-        } else {
-          // Desktop capture doesn't mute, so use stream directly
-          streamRef.current = stream;
-        }
+      if (bgResponse.success) {
+        // Background (Offscreen) recording started successfully.
+        // We do NOT acquire the stream locally to avoid "NotReadableError" or stream stealing.
+        // The Popup will use the remote waveform bridge (listenForRemoteUpdates) to visualize audio.
+        streamRef.current = null;
+        setAudioBlob(null);
 
-        // Send streamId to background to start recording there
-        // This ensures recording continues when popup closes
-        const bgResponse = await chrome.runtime.sendMessage({
-          action: 'startRecordingWithStream',
-          streamId: streamId
-        });
+        // Store start time for persistence
+        const startTime = Date.now();
+        startTimeRef.current = startTime;
+        setDuration(0);
+        chrome.storage.local.set({ recordingStartTime: startTime });
 
-        if (!bgResponse.success) {
-          // If background recording fails, record in popup and send chunks to background
-          const recorder = new MediaRecorder(stream, {
-            mimeType: mimeType
+        // Start duration timer
+        durationIntervalRef.current = window.setInterval(() => {
+          const elapsed = (Date.now() - startTimeRef.current) / 1000;
+          setDuration(elapsed);
+        }, 10);
+
+        setIsRecording(true);
+        setIsPaused(false);
+      } else {
+        // Background recording failed, fallback to local Popup recording
+        console.warn('Background recording failed, falling back to local:', bgResponse.error);
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              // @ts-ignore
+              mandatory: {
+                chromeMediaSource: method === 'desktop' ? 'desktop' : 'tab',
+                chromeMediaSourceId: streamId
+              }
+            } as any,
+            video: false
           });
 
+          streamRef.current = stream;
+
+          // Playback workaround for tab capture (if needed)
+          if (method === 'tab') {
+            const tempCtx = new AudioContext();
+            const src = tempCtx.createMediaStreamSource(stream);
+            src.connect(tempCtx.destination);
+            (window as any).__recordingAudioContext = tempCtx;
+          }
+
+          const recorder = new MediaRecorder(stream, { mimeType });
           chunksRef.current = [];
           recorder.ondataavailable = async (event) => {
             if (event.data.size > 0) {
@@ -209,59 +209,32 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             }
           };
 
-          recorder.onstop = async () => {
-            if (chunksRef.current.length > 0) {
-              const blob = new Blob(chunksRef.current, { type: mimeType });
-              setAudioBlob(blob);
-            }
+          recorder.onstop = () => {
+            const blob = new Blob(chunksRef.current, { type: mimeType });
+            setAudioBlob(blob);
           };
 
           mediaRecorderRef.current = recorder;
           recorder.start(100);
-        } else {
-          // Background is recording, but we also record locally as backup
-          const localRecorder = new MediaRecorder(stream, {
-            mimeType: mimeType
-          });
 
-          chunksRef.current = [];
-          localRecorder.ondataavailable = async (event) => {
-            if (event.data.size > 0) {
-              chunksRef.current.push(event.data);
-            }
-          };
+          const startTime = Date.now();
+          startTimeRef.current = startTime;
+          setDuration(0);
+          setAudioBlob(null);
+          chrome.storage.local.set({ recordingStartTime: startTime });
 
-          localRecorder.onstop = async () => {
-            // If we have local chunks, use them as backup
-            if (chunksRef.current.length > 0) {
-              const blob = new Blob(chunksRef.current, { type: mimeType });
-              console.log('Local recorder stopped, blob size:', blob.size);
-            }
-          };
+          durationIntervalRef.current = window.setInterval(() => {
+            const elapsed = (Date.now() - startTimeRef.current) / 1000;
+            setDuration(elapsed);
+          }, 10);
 
-          mediaRecorderRef.current = localRecorder;
-          localRecorder.start(100);
+          setIsRecording(true);
+          setIsPaused(false);
+        } catch (localError) {
+          console.error('Local recording fallback also failed:', localError);
+          throw localError;
         }
-      } catch (error) {
-        console.error('Could not get stream:', error);
-        throw error;
       }
-      const startTime = Date.now();
-      startTimeRef.current = startTime;
-      setDuration(0);
-      setAudioBlob(null);
-      
-      // Store start time for persistence
-      chrome.storage.local.set({ recordingStartTime: startTime });
-
-      // Start duration timer
-      durationIntervalRef.current = window.setInterval(() => {
-        const elapsed = (Date.now() - startTimeRef.current) / 1000;
-        setDuration(elapsed);
-      }, 10);
-
-      setIsRecording(true);
-      setIsPaused(false);
     } catch (error) {
       console.error('Error starting recording:', error);
       throw error;
@@ -288,9 +261,9 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
       // Stop recording in background
       const response = await chrome.runtime.sendMessage({ action: 'stopCapture' });
-      
+
       let finalBlob: Blob | null = null;
-      
+
       if (response && response.success && response.audioBlob && response.audioBlob.length > 0) {
         const audioArray = new Uint8Array(response.audioBlob);
         finalBlob = new Blob([audioArray], { type: 'audio/webm' });
@@ -313,7 +286,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
           console.warn('No audio blob available after stopping recording');
         }
       }
-      
+
       // Clear chunks after creating blob
       chunksRef.current = [];
 
@@ -322,7 +295,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         if ((streamRef.current as any).__waveformCleanup) {
           (streamRef.current as any).__waveformCleanup();
         }
-        
+
         const tracks = streamRef.current.getTracks();
         tracks.forEach((track: MediaStreamTrack) => {
           track.stop();
@@ -353,7 +326,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
       setIsRecording(false);
       setIsPaused(false);
-      
+
       // Return the blob so it can be used immediately
       return finalBlob;
     }

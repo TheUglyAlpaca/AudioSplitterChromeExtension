@@ -372,6 +372,8 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
+  max-height: 360px;
+  /* Ensure it stays within window */
 }
 
 .recent-recordings .empty-state {
