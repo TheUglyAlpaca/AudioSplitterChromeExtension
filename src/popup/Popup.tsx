@@ -797,12 +797,12 @@ const Popup: React.FC = () => {
         >
           My Recordings
         </button>
-        <button
+        {/* <button
           className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
           onClick={() => setActiveTab('ai')}
         >
           AI
-        </button>
+        </button> */}
         <button
           className={`tab ${activeTab === 'preferences' ? 'active' : ''}`}
           onClick={() => setActiveTab('preferences')}
@@ -911,20 +911,20 @@ const Popup: React.FC = () => {
               setActiveTab('recording');
             }}
             onDeleteRecording={handleDelete}
-            onOpenAI={(recording) => {
-              // Load selected recording for AI
-              const audioArray = new Uint8Array(recording.audioData);
-              const blob = new Blob([audioArray], { type: 'audio/webm' });
-              setAudioBlob(blob);
-              // Set the name without extension for display
-              const nameWithoutExt = recording.name.replace(/\.[^/.]+$/, '');
-              setRecordingName(nameWithoutExt);
-              setRecordingTimestamp(new Date(recording.timestamp));
-              // Store the recording ID and channel mode so we can use original settings
-              setCurrentRecordingId(recording.id);
-              setCurrentRecordingChannelMode((recording.channelMode as 'mono' | 'stereo') || 'stereo');
-              setActiveTab('ai');
-            }}
+          /* onOpenAI={(recording) => {
+            // Load selected recording for AI
+            const audioArray = new Uint8Array(recording.audioData);
+            const blob = new Blob([audioArray], { type: 'audio/webm' });
+            setAudioBlob(blob);
+            // Set the name without extension for display
+            const nameWithoutExt = recording.name.replace(/\.[^/.]+$/, '');
+            setRecordingName(nameWithoutExt);
+            setRecordingTimestamp(new Date(recording.timestamp));
+            // Store the recording ID and channel mode so we can use original settings
+            setCurrentRecordingId(recording.id);
+            setCurrentRecordingChannelMode((recording.channelMode as 'mono' | 'stereo') || 'stereo');
+            setActiveTab('ai');
+          }} */
           />
         </div>
       )}
@@ -987,8 +987,8 @@ const Popup: React.FC = () => {
       {activeTab !== 'recent' && activeTab !== 'ai' && (
         <button
           className="buy-coffee-button"
-          onClick={() => alert('In development')}
-          title="Buy us a coffee"
+          onClick={() => window.open('https://buymeacoffee.com/TheUglyAlpaca', '_blank')}
+          title="Support the developer"
         >
           ☕ Buy me a coffee
         </button>

@@ -145,7 +145,7 @@ export const Waveform: React.FC<WaveformProps> = ({
 
       // 3. Draw the playhead position line
       ctx.strokeStyle = '#888';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2 * zoom;
       ctx.beginPath();
       // Snap to pixel for sharpness
       const lineX = Math.floor(targetPosition) + 0.5;
@@ -209,7 +209,7 @@ export const Waveform: React.FC<WaveformProps> = ({
       // Redraw position line if it exists
       if (lastPositionRef.current >= 0 && duration > 0) {
         ctx.strokeStyle = '#888';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2 * zoom;
         ctx.beginPath();
         ctx.moveTo(lastPositionRef.current, 0);
         ctx.lineTo(lastPositionRef.current, scaledHeight);
@@ -223,12 +223,7 @@ export const Waveform: React.FC<WaveformProps> = ({
 
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const scale = zoom;
-    const containerCenterX = rect.width / 2;
-    const clickOffsetFromCenter = x - containerCenterX;
-    const scaledOffset = clickOffsetFromCenter / scale;
-    const adjustedX = containerCenterX + scaledOffset;
-    const percentage = Math.max(0, Math.min(1, adjustedX / rect.width));
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
     return percentage * duration;
   };
 
