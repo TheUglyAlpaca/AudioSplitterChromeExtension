@@ -1,4 +1,33 @@
 // Audio format conversion utilities
+// @ts-ignore - lamejs lacks type definitions
+import * as lamejs_base from 'lamejs';
+
+// Fix for lamejs scope issues - it expects these to be global
+// @ts-ignore
+const g = (typeof window !== 'undefined' ? window : global) as any;
+if (typeof window !== 'undefined') {
+  try {
+    if (!g.MPEGMode) g.MPEGMode = require('lamejs/src/js/MPEGMode.js');
+    if (!g.Lame) g.Lame = require('lamejs/src/js/Lame.js');
+    if (!g.BitStream) g.BitStream = require('lamejs/src/js/BitStream.js');
+    if (!g.LameGlobalFlags) g.LameGlobalFlags = require('lamejs/src/js/LameGlobalFlags.js');
+    if (!g.LameInternalFlags) g.LameInternalFlags = require('lamejs/src/js/LameInternalFlags.js');
+    if (!g.Tables) g.Tables = require('lamejs/src/js/Tables.js');
+    if (!g.Encoder) g.Encoder = require('lamejs/src/js/Encoder.js');
+    if (!g.L3Side) g.L3Side = require('lamejs/src/js/L3Side.js');
+
+    // Also common types that are often used globally
+    const common = require('lamejs/src/js/common.js');
+    if (!g.VbrMode) g.VbrMode = common.VbrMode;
+    if (!g.Float) g.Float = common.Float;
+    if (!g.ShortBlock) g.ShortBlock = common.ShortBlock;
+    if (!g.Util) g.Util = common.Util;
+    if (!g.Arrays) g.Arrays = common.Arrays;
+    if (!g.System) g.System = common.System;
+  } catch (e) {
+    console.warn('Could not inject lamejs globals:', e);
+  }
+}
 
 /**
  * Resamples audio buffer to target sample rate using linear interpolation
@@ -351,20 +380,70 @@ export async function convertAudioFormat(
   if (format === 'ogg' && blob.type.includes('ogg')) {
     return blob;
   }
-
   // Default: return original blob
   return blob;
 }
 
 /**
- * Converts an AudioBuffer to MP3 format
- * NOTE: MP3 encoding via lamejs is currently disabled due to bundling issues.
- * Falling back to WAV format until a proper solution is implemented.
+ * Converts an AudioBuffer to MP3 format using lamejs
  */
 async function convertToMp3(audioBuffer: AudioBuffer): Promise<Blob> {
-  console.warn('MP3 encoding is temporarily disabled, using WAV format instead');
-  // Fallback to WAV format until lamejs bundling issues are resolved
-  return audioBufferToWav(audioBuffer, 16);
+  const channels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const kbps = 128; // Default bitrate
+
+  // @ts-ignore
+  const mp3encoder = new lamejs_base.Mp3Encoder(channels, sampleRate, kbps);
+
+  const mp3Data: any[] = [];
+
+  const sampleSize = 1152; // Samples per frame
+
+  if (channels === 1) {
+    const samples = audioBuffer.getChannelData(0);
+    const int16Samples = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      int16Samples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+
+    for (let i = 0; i < int16Samples.length; i += sampleSize) {
+      const sampleChunk = int16Samples.subarray(i, i + sampleSize);
+      // @ts-ignore
+      const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+      if (mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+      }
+    }
+  } else {
+    const left = audioBuffer.getChannelData(0);
+    const right = audioBuffer.getChannelData(1);
+    const int16Left = new Int16Array(left.length);
+    const int16Right = new Int16Array(right.length);
+
+    for (let i = 0; i < left.length; i++) {
+      const sL = Math.max(-1, Math.min(1, left[i]));
+      int16Left[i] = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+      const sR = Math.max(-1, Math.min(1, right[i]));
+      int16Right[i] = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+    }
+
+    for (let i = 0; i < int16Left.length; i += sampleSize) {
+      const leftChunk = int16Left.subarray(i, i + sampleSize);
+      const rightChunk = int16Right.subarray(i, i + sampleSize);
+      const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+      if (mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+      }
+    }
+  }
+
+  const endBuf = mp3encoder.flush();
+  if (endBuf.length > 0) {
+    mp3Data.push(endBuf);
+  }
+
+  return new Blob(mp3Data, { type: 'audio/mp3' });
 }
 
 /**
