@@ -281,9 +281,11 @@ export const Waveform: React.FC<WaveformProps> = ({
   // zoom > 1 means zoom in (make larger), zoom < 1 means zoom out (make smaller)
   const scale = zoom;
 
-  // Calculate percentages for render
-  const startPercent = duration > 0 ? (trimStart / duration) * 100 : 0;
-  const endPercent = duration > 0 ? ((trimEnd || duration) / duration) * 100 : 100;
+  // Calculate percentages for render - handle edge cases like 0 or Infinity duration
+  const safeDuration = (duration > 0 && isFinite(duration)) ? duration : 0;
+  const startPercent = safeDuration > 0 ? Math.max(0, Math.min(100, (trimStart / safeDuration) * 100)) : 0;
+  const endPercentValue = trimEnd || duration;
+  const endPercent = (safeDuration > 0 && isFinite(endPercentValue)) ? Math.max(0, Math.min(100, (endPercentValue / safeDuration) * 100)) : 100;
 
   return (
     <div

@@ -236,10 +236,15 @@ const Popup: React.FC = () => {
           // Set up event listeners
           audio.addEventListener('loadedmetadata', () => {
             // Audio is ready - immediately set current time to show playhead
-            console.log('Audio loaded, duration:', audio.duration);
+            const audioDuration = audio.duration;
+            const finalDuration = (audioDuration && isFinite(audioDuration)) ? audioDuration : recordingDuration;
+
+            console.log('Audio loaded, element duration:', audioDuration, 'fallback duration:', recordingDuration, 'final duration:', finalDuration);
+
             setCurrentPlayTime(audio.currentTime || 0);
             setTrimStart(0);
-            setTrimEnd(audio.duration);
+            // Ensure trimEnd is a valid number
+            setTrimEnd(finalDuration || 0);
           });
 
           audio.addEventListener('ended', () => {
@@ -738,9 +743,13 @@ const Popup: React.FC = () => {
   };
 
   // Calculate effective display values respecting trim
-  const totalDuration = audioRef.current?.duration || 0;
-  const effectiveEnd = (trimEnd > 0 && trimEnd < totalDuration) ? trimEnd : totalDuration;
+  // Derived values for UI display - handle Infinity duration for recorded blobs
+  const totalDuration = (audioRef.current && isFinite(audioRef.current.duration))
+    ? audioRef.current.duration
+    : (isRecording ? recordingDuration : (recordingDuration || 0));
+
   const effectiveStart = trimStart > 0 ? trimStart : 0;
+  const effectiveEnd = (trimEnd > 0 && trimEnd < totalDuration) ? trimEnd : totalDuration;
   const isTrimmed = trimStart > 0 || (trimEnd > 0 && trimEnd < totalDuration);
 
   const displayDuration = isRecording ? recordingDuration : (isTrimmed ? effectiveEnd - effectiveStart : totalDuration);
@@ -944,6 +953,10 @@ const Popup: React.FC = () => {
               const audioArray = new Uint8Array(recording.audioData);
               const blob = new Blob([audioArray], { type: 'audio/webm' });
               setAudioBlob(blob);
+              // Set duration if available in metadata as a fallback for the audio element
+              if (recording.duration) {
+                setRecordingDuration(recording.duration);
+              }
               // Set the name without extension for display
               const nameWithoutExt = recording.name.replace(/\.[^/.]+$/, '');
               setRecordingName(nameWithoutExt);
