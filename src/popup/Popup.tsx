@@ -5,7 +5,7 @@ import { useWaveform } from './hooks/useWaveform';
 import { formatTime, formatDate, downloadAudio } from './utils/audioUtils';
 import { getFileExtension } from './utils/formatUtils';
 import { convertAudioFormat, cropAudioBlob } from './utils/audioConverter';
-import { saveRecording, migrateFromChromeStorage, updateRecordingName, deleteRecording } from './utils/storageManager';
+import { saveRecording, migrateFromChromeStorage, updateRecordingName, deleteRecording, getRecording } from './utils/storageManager';
 
 
 import { Waveform } from './components/Waveform';
@@ -131,6 +131,10 @@ const Popup: React.FC = () => {
         if (savedState.trimEnd !== undefined && savedState.trimEnd > 0) {
           setTrimEnd(savedState.trimEnd);
         }
+        // Restore loaded audio duration
+        if (savedState.loadedAudioDuration !== undefined && savedState.loadedAudioDuration > 0) {
+          setLoadedAudioDuration(savedState.loadedAudioDuration);
+        }
       }
     });
 
@@ -167,11 +171,42 @@ const Popup: React.FC = () => {
           currentRecordingChannelMode,
           // Only persist trim values when NOT recording to avoid stale values
           trimStart: isRecording ? 0 : trimStart,
-          trimEnd: isRecording ? 0 : trimEnd
+          trimEnd: isRecording ? 0 : trimEnd,
+          // Persist loaded audio duration
+          loadedAudioDuration: isRecording ? 0 : loadedAudioDuration
         }
       });
     }
-  }, [recordingName, recordingTimestamp, currentRecordingId, currentRecordingChannelMode, trimStart, trimEnd, isRecording]);
+  }, [recordingName, recordingTimestamp, currentRecordingId, currentRecordingChannelMode, trimStart, trimEnd, isRecording, loadedAudioDuration]);
+
+  // Reload recording from storage when popup reopens with a saved currentRecordingId but no audioBlob
+  useEffect(() => {
+    const reloadRecording = async () => {
+      // Only reload if we have an ID but no blob (popup was minimized with a recording loaded)
+      if (currentRecordingId && !audioBlob && !isRecording) {
+        console.log('Reloading recording from storage:', currentRecordingId);
+        try {
+          const fullRecording = await getRecording(currentRecordingId);
+          if (fullRecording) {
+            // Restore the audio blob
+            const blob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
+            setAudioBlob(blob);
+
+            // Set duration from metadata if not already set
+            if (loadedAudioDuration === 0 && fullRecording.metadata.duration) {
+              setLoadedAudioDuration(fullRecording.metadata.duration);
+            }
+
+            console.log('Recording reloaded from storage, size:', blob.size);
+          }
+        } catch (error) {
+          console.error('Error reloading recording:', error);
+        }
+      }
+    };
+
+    reloadRecording();
+  }, [currentRecordingId, audioBlob, isRecording, loadedAudioDuration, setAudioBlob]);
 
   // Update recording name and timestamp when recording starts
   useEffect(() => {

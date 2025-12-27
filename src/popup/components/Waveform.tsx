@@ -324,9 +324,6 @@ export const Waveform: React.FC<WaveformProps> = ({
   const startHandlePercent = isAtStart ? 0 : (safeDuration > 0 ? getXPercentFromTime(trimStart) : 0);
   const endHandlePercent = isAtEnd ? 100 : (safeDuration > 0 ? getXPercentFromTime(trimEnd) : 100);
 
-  // Debug: trace post-recording drift
-  console.log('Post-recording debug:', { isRecording, trimEnd, duration, isAtEnd, endHandlePercent });
-
 
   // Check if handles are in visible range
   const { startTime: visibleStart, endTime: visibleEnd } = getVisibleRange();
