@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 interface WaveformProps {
   data: Uint8Array | null;
@@ -47,15 +47,56 @@ export const Waveform: React.FC<WaveformProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastPositionRef = useRef<number>(-1);
-  const lastUpdateTimeRef = useRef<number>(Date.now());
-  const lastKnownTimeRef = useRef<number>(0);
-  const interpolatedPositionRef = useRef<number>(0);
-  const prevZoomRef = useRef<number>(zoom);
 
-  // Drag state
-  const [draggingHandle, setDraggingHandle] = React.useState<'start' | 'end' | null>(null);
+  // Scroll offset as a ratio of duration (0 to 1 - 1/zoom)
+  const [scrollOffset, setScrollOffset] = useState(0);
 
-  // Draw waveform (only when data changes)
+  // Drag states
+  const [draggingHandle, setDraggingHandle] = useState<'start' | 'end' | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; scrollOffset: number } | null>(null);
+
+  // Clamp scroll offset when zoom changes
+  useEffect(() => {
+    const maxOffset = Math.max(0, 1 - 1 / zoom);
+    if (scrollOffset > maxOffset) {
+      setScrollOffset(maxOffset);
+    }
+  }, [zoom, scrollOffset]);
+
+  // Reset scroll when zoom returns to 1
+  useEffect(() => {
+    if (zoom === 1) {
+      setScrollOffset(0);
+    }
+  }, [zoom]);
+
+  // Calculate visible time range
+  const getVisibleRange = useCallback(() => {
+    const visibleDuration = duration / zoom;
+    const startTime = scrollOffset * duration;
+    const endTime = startTime + visibleDuration;
+    return { startTime, endTime, visibleDuration };
+  }, [duration, zoom, scrollOffset]);
+
+  // Convert screen X position to time
+  const getTimeFromX = useCallback((clientX: number): number => {
+    if (!containerRef.current || !duration) return 0;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const { startTime, visibleDuration } = getVisibleRange();
+    return startTime + percentage * visibleDuration;
+  }, [duration, getVisibleRange]);
+
+  // Convert time to screen X percentage (relative to container)
+  const getXPercentFromTime = useCallback((time: number): number => {
+    const { startTime, visibleDuration } = getVisibleRange();
+    if (visibleDuration <= 0) return 0;
+    return ((time - startTime) / visibleDuration) * 100;
+  }, [getVisibleRange]);
+
+  // Draw waveform
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data) return;
@@ -63,38 +104,44 @@ export const Waveform: React.FC<WaveformProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Apply zoom scale to canvas dimensions for visual scaling
-    const scale = zoom;
-    const scaledWidth = width * scale;
-    const scaledHeight = height * scale;
-    canvas.width = scaledWidth;
-    canvas.height = scaledHeight;
+    // Set canvas size
+    canvas.width = width;
+    canvas.height = height;
 
     // Clear canvas
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+    ctx.fillRect(0, 0, width, height);
 
-    // Draw waveform bars
-    // Zoom in (zoom > 1): shows fewer bars (more detail per bar) and larger size
-    // Zoom out (zoom < 1): shows more bars (less detail, see more of waveform) and smaller size
-    const barCount = Math.floor(data.length / zoom);
-    const barWidth = scaledWidth / barCount;
-    const maxBarHeight = scaledHeight * 0.8;
+    // Calculate which portion of data to show
+    const { startTime, endTime } = getVisibleRange();
+    const startRatio = duration > 0 ? startTime / duration : 0;
+    const endRatio = duration > 0 ? endTime / duration : 1;
+
+    const dataStartIndex = Math.floor(startRatio * data.length);
+    const dataEndIndex = Math.ceil(endRatio * data.length);
+    const visibleDataLength = dataEndIndex - dataStartIndex;
+
+    if (visibleDataLength <= 0) return;
+
+    // Draw waveform bars for visible portion
+    const barCount = Math.min(visibleDataLength, width);
+    const barWidth = width / barCount;
+    const maxBarHeight = height * 0.8;
 
     ctx.fillStyle = barColor;
 
     for (let i = 0; i < barCount; i++) {
-      const dataIndex = Math.floor(i * zoom);
+      const dataIndex = dataStartIndex + Math.floor((i / barCount) * visibleDataLength);
       const value = data[dataIndex] || 0;
-      const barHeight = (value / 255) * maxBarHeight * zoom;
+      const barHeight = (value / 255) * maxBarHeight;
       const x = i * barWidth;
-      const y = (scaledHeight - barHeight) / 2;
+      const y = (height - barHeight) / 2;
 
       ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
     }
-  }, [data, width, height, barColor, backgroundColor, zoom]);
+  }, [data, width, height, barColor, backgroundColor, zoom, scrollOffset, duration, getVisibleRange]);
 
-  // Smooth playback position indicator using requestAnimationFrame
+  // Smooth playback position indicator
   useEffect(() => {
     if (duration <= 0 || !data) {
       if (animationFrameRef.current) {
@@ -110,66 +157,60 @@ export const Waveform: React.FC<WaveformProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Calculate scale once for this effect
-    const scale = zoom;
-    const scaledWidth = width * scale;
-    const scaledHeight = height * scale;
-
     let isActive = true;
 
     const drawPosition = () => {
       if (!isActive || !canvas || !ctx || !data) return;
 
-      // Calculate target position based on current time (on scaled canvas)
-      // This is the absolute truth for where the line should be.
-      // We do not interpolate anymore, we just draw exactly where it should be.
-      // Since we refresh entire canvas, 60fps update is smooth enough.
-      const targetPosition = (currentTime / duration) * scaledWidth;
+      const { startTime, endTime, visibleDuration } = getVisibleRange();
 
-      // Update ref for other effects
-      lastPositionRef.current = targetPosition;
+      // Calculate which portion of data to show
+      const startRatio = startTime / duration;
+      const endRatio = endTime / duration;
 
-      // Get colors and dimensions
-      const currentBgColor = backgroundColor;
-      const currentBarColor = barColor;
-      const barCount = Math.floor(data.length / zoom);
-      const barWidth = scaledWidth / barCount;
-      const maxBarHeight = scaledHeight * 0.8;
+      const dataStartIndex = Math.floor(startRatio * data.length);
+      const dataEndIndex = Math.ceil(endRatio * data.length);
+      const visibleDataLength = dataEndIndex - dataStartIndex;
 
-      // 1. Clear the ENTIRE canvas
-      // This guarantees no trails and no artifacts
-      ctx.fillStyle = currentBgColor;
-      ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+      // 1. Clear canvas
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, width, height);
 
-      // 2. Redraw the entire waveform
-      // Canvas makes this surprisingly fast even at 60fps
-      ctx.fillStyle = currentBarColor;
-      for (let i = 0; i < barCount; i++) {
-        const dataIndex = Math.floor(i * zoom);
-        const value = data[dataIndex] || 0;
-        const barHeight = (value / 255) * maxBarHeight * zoom;
-        const x = i * barWidth;
-        const y = (scaledHeight - barHeight) / 2;
-        ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
+      // 2. Redraw waveform
+      if (visibleDataLength > 0) {
+        const barCount = Math.min(visibleDataLength, width);
+        const barWidth = width / barCount;
+        const maxBarHeight = height * 0.8;
+
+        ctx.fillStyle = barColor;
+        for (let i = 0; i < barCount; i++) {
+          const dataIndex = dataStartIndex + Math.floor((i / barCount) * visibleDataLength);
+          const value = data[dataIndex] || 0;
+          const barHeight = (value / 255) * maxBarHeight;
+          const x = i * barWidth;
+          const y = (height - barHeight) / 2;
+          ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
+        }
       }
 
-      // 3. Draw the playhead position line
-      ctx.strokeStyle = '#888';
-      ctx.lineWidth = 2 * zoom;
-      ctx.beginPath();
-      // Snap to pixel for sharpness
-      const lineX = Math.floor(targetPosition) + 0.5;
-      ctx.moveTo(lineX, 0);
-      ctx.lineTo(lineX, scaledHeight);
-      ctx.stroke();
+      // 3. Draw playhead if in visible range
+      if (currentTime >= startTime && currentTime <= endTime) {
+        const playheadX = ((currentTime - startTime) / visibleDuration) * width;
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const lineX = Math.floor(playheadX) + 0.5;
+        ctx.moveTo(lineX, 0);
+        ctx.lineTo(lineX, height);
+        ctx.stroke();
+        lastPositionRef.current = lineX;
+      }
 
-      // Continue animation loop
       if (isActive && duration > 0) {
         animationFrameRef.current = requestAnimationFrame(drawPosition);
       }
     };
 
-    // Start animation loop
     animationFrameRef.current = requestAnimationFrame(drawPosition);
 
     return () => {
@@ -179,82 +220,38 @@ export const Waveform: React.FC<WaveformProps> = ({
         animationFrameRef.current = null;
       }
     };
-  }, [currentTime, duration, width, data, zoom, backgroundColor, barColor, height]);
+  }, [currentTime, duration, width, height, data, zoom, scrollOffset, backgroundColor, barColor, getVisibleRange]);
 
-  // Redraw waveform when colors change (theme change)
-  useEffect(() => {
-    if (data && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Apply zoom scale to canvas dimensions for visual scaling
-      const scale = zoom;
-      const scaledWidth = width * scale;
-      const scaledHeight = height * scale;
-      canvas.width = scaledWidth;
-      canvas.height = scaledHeight;
-
-      // Clear canvas with new background color
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, scaledWidth, scaledHeight);
-
-      // Redraw waveform bars with new colors
-      const barCount = Math.floor(data.length / zoom);
-      const barWidth = scaledWidth / barCount;
-      const maxBarHeight = scaledHeight * 0.8;
-
-      ctx.fillStyle = barColor;
-
-      for (let i = 0; i < barCount; i++) {
-        const dataIndex = Math.floor(i * zoom);
-        const value = data[dataIndex] || 0;
-        const barHeight = (value / 255) * maxBarHeight * zoom;
-        const x = i * barWidth;
-        const y = (scaledHeight - barHeight) / 2;
-
-        ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
-      }
-
-      // Redraw position line if it exists
-      if (lastPositionRef.current >= 0 && duration > 0) {
-        ctx.strokeStyle = '#888';
-        ctx.lineWidth = 2 * zoom;
-        ctx.beginPath();
-        ctx.moveTo(lastPositionRef.current, 0);
-        ctx.lineTo(lastPositionRef.current, scaledHeight);
-        ctx.stroke();
-      }
-    }
-  }, [backgroundColor, barColor, data, width, height, zoom, duration]);
-
-  const getTimeFromEvent = (e: React.MouseEvent | MouseEvent) => {
-    if (!duration || !containerRef.current) return 0;
-
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, x / rect.width));
-    return percentage * duration;
-  };
-
+  // Handle click for seeking
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!onSeek || !duration || isRecording || draggingHandle) return;
-    const seekTime = getTimeFromEvent(e);
+    if (!onSeek || !duration || isRecording || draggingHandle || isPanning) return;
+    const seekTime = getTimeFromX(e.clientX);
     onSeek(Math.max(0, Math.min(seekTime, duration)));
   };
 
-  const handleMouseDown = (e: React.MouseEvent, handle: 'start' | 'end') => {
-    e.stopPropagation(); // Prevent seek click
+  // Handle mouse down for trim handles
+  const handleTrimMouseDown = (e: React.MouseEvent, handle: 'start' | 'end') => {
+    e.stopPropagation();
+    e.preventDefault();
     setDraggingHandle(handle);
   };
 
+  // Handle mouse down for panning
+  const handlePanMouseDown = (e: React.MouseEvent) => {
+    if (draggingHandle || zoom <= 1) return;
+    // Only start panning on left click and not on handles
+    if (e.button !== 0) return;
+    setIsPanning(true);
+    panStartRef.current = { x: e.clientX, scrollOffset };
+  };
+
+  // Handle trim dragging
   useEffect(() => {
     if (!draggingHandle) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!onTrimChange || !duration) return;
-      const time = getTimeFromEvent(e);
-      // Clamp values and ensure start < end
+      const time = getTimeFromX(e.clientX);
       if (draggingHandle === 'start') {
         const maxStart = trimEnd > 0 ? trimEnd - 0.1 : duration - 0.1;
         onTrimChange(Math.max(0, Math.min(time, maxStart)), trimEnd || duration);
@@ -275,26 +272,70 @@ export const Waveform: React.FC<WaveformProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingHandle, duration, onTrimChange, trimStart, trimEnd, zoom]); // including zoom to be safe for closure
+  }, [draggingHandle, duration, onTrimChange, trimStart, trimEnd, getTimeFromX]);
 
-  // Calculate scale based on zoom for visual scaling
-  // zoom > 1 means zoom in (make larger), zoom < 1 means zoom out (make smaller)
-  const scale = zoom;
+  // Handle panning
+  useEffect(() => {
+    if (!isPanning) return;
 
-  // Calculate percentages for render - handle edge cases like 0 or Infinity duration
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!panStartRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const deltaX = e.clientX - panStartRef.current.x;
+      const deltaRatio = deltaX / rect.width / zoom;
+      const newOffset = panStartRef.current.scrollOffset - deltaRatio;
+      const maxOffset = Math.max(0, 1 - 1 / zoom);
+      setScrollOffset(Math.max(0, Math.min(maxOffset, newOffset)));
+    };
+
+    const handleMouseUp = () => {
+      setIsPanning(false);
+      panStartRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isPanning, zoom]);
+
+  // Handle wheel for scrolling
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+    const scrollAmount = (delta / 500) / zoom;
+    const maxOffset = Math.max(0, 1 - 1 / zoom);
+    setScrollOffset(prev => Math.max(0, Math.min(maxOffset, prev + scrollAmount)));
+  }, [zoom]);
+
+  // Calculate handle positions
   const safeDuration = (duration > 0 && isFinite(duration)) ? duration : 0;
-  const startPercent = safeDuration > 0 ? Math.max(0, Math.min(100, (trimStart / safeDuration) * 100)) : 0;
-  const endPercentValue = trimEnd || duration;
-  const endPercent = (safeDuration > 0 && isFinite(endPercentValue)) ? Math.max(0, Math.min(100, (endPercentValue / safeDuration) * 100)) : 100;
+  const startHandlePercent = safeDuration > 0 ? getXPercentFromTime(trimStart) : 0;
+  const endHandlePercent = safeDuration > 0 ? getXPercentFromTime(trimEnd || duration) : 100;
+
+  // Check if handles are in visible range
+  const { startTime: visibleStart, endTime: visibleEnd } = getVisibleRange();
+  const isStartHandleVisible = trimStart >= visibleStart && trimStart <= visibleEnd;
+  const isEndHandleVisible = (trimEnd || duration) >= visibleStart && (trimEnd || duration) <= visibleEnd;
+
+  // Calculate dim overlay positions (for visible portion)
+  const trimStartPercent = safeDuration > 0 ? Math.max(0, getXPercentFromTime(trimStart)) : 0;
+  const trimEndPercent = safeDuration > 0 ? Math.min(100, getXPercentFromTime(trimEnd || duration)) : 100;
 
   return (
     <div
       ref={containerRef}
       onClick={handleClick}
+      onMouseDown={handlePanMouseDown}
+      onWheel={handleWheel}
       style={{
         width: '100%',
         height: '100%',
-        cursor: onSeek && !isRecording && duration > 0 ? 'pointer' : 'default',
+        cursor: isPanning ? 'grabbing' : (zoom > 1 ? 'grab' : (onSeek && !isRecording && duration > 0 ? 'pointer' : 'default')),
         position: 'relative',
         overflow: 'hidden',
         display: 'flex',
@@ -308,68 +349,58 @@ export const Waveform: React.FC<WaveformProps> = ({
           {channelMode.toUpperCase()}
         </div>
       )}
-      <div
+      <canvas
+        ref={canvasRef}
         style={{
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
-          width: `${100 / scale}%`,
-          height: `${100 / scale}%`,
-          position: 'relative'
+          width: '100%',
+          height: '100%',
+          display: 'block'
         }}
-      >
-        <canvas
-          ref={canvasRef}
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block'
-          }}
-        />
+      />
 
-        {/* Dimming Overlays */}
-        {trimStart > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            height: '100%',
-            width: `${startPercent}%`,
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            pointerEvents: 'none'
-          }} />
-        )}
+      {/* Dimming Overlays */}
+      {trimStart > 0 && trimStartPercent > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          height: '100%',
+          width: `${Math.max(0, trimStartPercent)}%`,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          pointerEvents: 'none'
+        }} />
+      )}
 
-        {trimEnd > 0 && trimEnd < duration && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: `${endPercent}%`,
-            height: '100%',
-            right: 0, // Fill to end
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            pointerEvents: 'none'
-          }} />
-        )}
+      {trimEnd > 0 && trimEnd < duration && trimEndPercent < 100 && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: `${Math.min(100, trimEndPercent)}%`,
+          height: '100%',
+          right: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          pointerEvents: 'none'
+        }} />
+      )}
 
-        {/* Drag Handles */}
-        {!isRecording && onTrimChange && duration > 0 && (
-          <>
-            {/* Start Handle */}
+      {/* Drag Handles */}
+      {!isRecording && onTrimChange && duration > 0 && (
+        <>
+          {/* Start Handle */}
+          {isStartHandleVisible && (
             <div
-              onMouseDown={(e) => handleMouseDown(e, 'start')}
+              onMouseDown={(e) => handleTrimMouseDown(e, 'start')}
               style={{
                 position: 'absolute',
                 top: 0,
-                height: `${100 * scale}%`,
-                left: `${startPercent}%`,
-                width: '16px', // Wider hit area
-                marginLeft: '-8px', // Center on percentage
+                height: '100%',
+                left: `${startHandlePercent}%`,
+                width: '16px',
+                marginLeft: '-8px',
                 cursor: 'ew-resize',
                 zIndex: 10,
                 display: 'flex',
-                justifyContent: 'center',
-                transform: `scale(${1 / scale})`,
-                transformOrigin: 'top center'
+                justifyContent: 'center'
               }}
             >
               <div style={{
@@ -407,23 +438,23 @@ export const Waveform: React.FC<WaveformProps> = ({
                 <span style={{ fontSize: '10px', color: trimHandleColors[theme].startText, fontWeight: 'bold' }}>◀</span>
               </div>
             </div>
+          )}
 
-            {/* End Handle */}
+          {/* End Handle */}
+          {isEndHandleVisible && (
             <div
-              onMouseDown={(e) => handleMouseDown(e, 'end')}
+              onMouseDown={(e) => handleTrimMouseDown(e, 'end')}
               style={{
                 position: 'absolute',
                 top: 0,
-                height: `${100 * scale}%`,
-                left: `${endPercent}%`,
+                height: '100%',
+                left: `${endHandlePercent}%`,
                 width: '16px',
                 marginLeft: '-8px',
                 cursor: 'ew-resize',
                 zIndex: 10,
                 display: 'flex',
-                justifyContent: 'center',
-                transform: `scale(${1 / scale})`,
-                transformOrigin: 'top center'
+                justifyContent: 'center'
               }}
             >
               <div style={{
@@ -461,9 +492,9 @@ export const Waveform: React.FC<WaveformProps> = ({
                 <span style={{ fontSize: '10px', color: trimHandleColors[theme].endText, fontWeight: 'bold' }}>▶</span>
               </div>
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

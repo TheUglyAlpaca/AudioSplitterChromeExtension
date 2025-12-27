@@ -578,11 +578,11 @@ const Popup: React.FC = () => {
   };
 
   const handleZoomIn = () => {
-    setZoom(Math.min(zoom + 1, 7));
+    setZoom(Math.min(zoom * 2, 8));
   };
 
   const handleZoomOut = () => {
-    setZoom(Math.max(zoom - 1, 1));
+    setZoom(Math.max(zoom / 2, 1));
   };
 
   const handleTrimChange = (start: number, end: number) => {
