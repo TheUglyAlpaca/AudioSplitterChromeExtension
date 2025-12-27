@@ -183,6 +183,52 @@ body.rainbow-mode .waveform-container canvas {
   }
 }
 
+/* Rainbow theme icon - cycles through rainbow colors */
+body.rainbow-mode .header .icon-button svg {
+  animation: rainbow-icon-color 12s linear infinite;
+}
+
+@keyframes rainbow-icon-color {
+  0% {
+    fill: #ff0000;
+    color: #ff0000;
+  }
+
+  14% {
+    fill: #ff7f00;
+    color: #ff7f00;
+  }
+
+  28% {
+    fill: #ffff00;
+    color: #ffff00;
+  }
+
+  42% {
+    fill: #00ff00;
+    color: #00ff00;
+  }
+
+  57% {
+    fill: #0000ff;
+    color: #0000ff;
+  }
+
+  71% {
+    fill: #4b0082;
+    color: #4b0082;
+  }
+
+  85% {
+    fill: #9400d3;
+    color: #9400d3;
+  }
+
+  100% {
+    fill: #ff0000;
+    color: #ff0000;
+  }
+}
 
 #root {
   height: 100%;
