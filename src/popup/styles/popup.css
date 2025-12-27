@@ -70,6 +70,119 @@ body.forest-mode {
   --toggle-active: #fbbf24;
 }
 
+body.rainbow-mode {
+  --bg-primary: linear-gradient(180deg, #000000 0%, #2a2a2a 100%);
+  --bg-secondary: #1a1a1a;
+  --bg-hover: #333333;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --border-color: #444444;
+  --bg-input: rgba(255, 255, 255, 0.1);
+  --toggle-active: #ff0000;
+}
+
+body.rainbow-mode {
+  background: linear-gradient(180deg, #000000 0%, #2a2a2a 100%);
+}
+
+body.rainbow-mode .popup-container {
+  background: transparent;
+}
+
+/* Rainbow pulse animation */
+@keyframes rainbow-pulse {
+  0% {
+    color: #ff0000;
+  }
+
+  14% {
+    color: #ff7f00;
+  }
+
+  28% {
+    color: #ffff00;
+  }
+
+  42% {
+    color: #00ff00;
+  }
+
+  57% {
+    color: #0000ff;
+  }
+
+  71% {
+    color: #4b0082;
+  }
+
+  85% {
+    color: #9400d3;
+  }
+
+  100% {
+    color: #ff0000;
+  }
+}
+
+@keyframes rainbow-bg-pulse {
+  0% {
+    background-color: #ff0000;
+  }
+
+  14% {
+    background-color: #ff7f00;
+  }
+
+  28% {
+    background-color: #ffff00;
+  }
+
+  42% {
+    background-color: #00ff00;
+  }
+
+  57% {
+    background-color: #0000ff;
+  }
+
+  71% {
+    background-color: #4b0082;
+  }
+
+  85% {
+    background-color: #9400d3;
+  }
+
+  100% {
+    background-color: #ff0000;
+  }
+}
+
+/* Rainbow toggle slider - slow animation */
+body.rainbow-mode .toggle-switch input:checked+.toggle-slider {
+  animation: rainbow-bg-pulse 8s linear infinite;
+}
+
+body.rainbow-mode .toggle-switch input:checked+.toggle-slider:before {
+  background-color: #ffffff;
+}
+
+/* Rainbow waveform container - slow color shift */
+body.rainbow-mode .waveform-container canvas {
+  filter: hue-rotate(0deg);
+  animation: rainbow-hue-shift 6s linear infinite;
+}
+
+@keyframes rainbow-hue-shift {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
 
 #root {
   height: 100%;

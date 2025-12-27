@@ -31,7 +31,7 @@ const Popup: React.FC = () => {
   const [startTime, setStartTime] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
-  const [theme, setTheme] = useState<'dark' | 'light' | 'midnight' | 'forest'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'midnight' | 'forest' | 'rainbow'>('light');
   const [preferences, setPreferences] = useState<{
     format?: string;
     sampleRate?: string;
@@ -729,7 +729,7 @@ const Popup: React.FC = () => {
   };
 
   const handleThemeToggle = () => {
-    const themes: ('dark' | 'light' | 'midnight' | 'forest')[] = ['dark', 'light', 'midnight', 'forest'];
+    const themes: ('light' | 'dark' | 'midnight' | 'forest' | 'rainbow')[] = ['light', 'dark', 'midnight', 'forest', 'rainbow'];
     const currentIndex = themes.indexOf(theme);
     const nextIndex = (currentIndex + 1) % themes.length;
     const newTheme = themes[nextIndex];
@@ -825,6 +825,11 @@ const Popup: React.FC = () => {
                   c0.66,0.928,1.343,1.826,2.041,2.724l-3.43,1.396C259.725,344.984,260.208,343.625,260.615,342.229z M284.874,405.402v-40.579
                   c7.181,4.366,15.076,7.642,23.492,9.622L284.874,405.402z" />
               </svg>
+            ) : theme === 'rainbow' ? (
+              // Rainbow Icon
+              <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor">
+                <path d="M256,172v8a12,12,0,0,1-24,0v-8a104,104,0,0,0-208,0v8a12,12,0,0,1-24,0v-8a128,128,0,0,1,256,0ZM128,140a36.04061,36.04061,0,0,0-36,36v4a12,12,0,0,0,24,0v-4a12,12,0,0,1,24,0v4a12,12,0,0,0,24,0v-4A36.04061,36.04061,0,0,0,128,140Zm0-48a84.0953,84.0953,0,0,0-84,84v4a12,12,0,0,0,24,0v-4a60,60,0,0,1,120,0v4a12,12,0,0,0,24,0v-4A84.0953,84.0953,0,0,0,128,92Z" />
+              </svg>
             ) : (
               // Moon Icon for Dark (Default)
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -902,7 +907,8 @@ const Popup: React.FC = () => {
                 theme === 'light' ? '#f5f5f5' :
                   theme === 'midnight' ? '#1e293b' :
                     theme === 'forest' ? '#064e3b' :
-                      '#1f1f1f'
+                      theme === 'rainbow' ? '#1a1a1a' :
+                        '#1f1f1f'
               }
               theme={theme}
               trimStart={trimStart}

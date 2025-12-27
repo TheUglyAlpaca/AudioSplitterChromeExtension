@@ -12,7 +12,7 @@ interface WaveformProps {
   onSeek?: (time: number) => void;
   isRecording?: boolean;
   channelMode?: 'mono' | 'stereo';
-  theme?: 'dark' | 'light' | 'midnight' | 'forest';
+  theme?: 'dark' | 'light' | 'midnight' | 'forest' | 'rainbow';
   trimStart?: number;
   trimEnd?: number;
   onTrimChange?: (start: number, end: number) => void;
@@ -23,7 +23,8 @@ const trimHandleColors = {
   dark: { start: '#00d4ff', startText: '#000', end: '#ff6b00', endText: '#fff' },
   light: { start: '#0077b6', startText: '#fff', end: '#d62828', endText: '#fff' },
   midnight: { start: '#a78bfa', startText: '#000', end: '#f472b6', endText: '#000' },
-  forest: { start: '#34d399', startText: '#000', end: '#fbbf24', endText: '#000' }
+  forest: { start: '#34d399', startText: '#000', end: '#fbbf24', endText: '#000' },
+  rainbow: { start: '#c0c0c0', startText: '#000', end: '#c0c0c0', endText: '#000' }
 };
 
 export const Waveform: React.FC<WaveformProps> = ({
