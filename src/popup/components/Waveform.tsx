@@ -155,7 +155,9 @@ export const Waveform: React.FC<WaveformProps> = ({
     scrollOffset: number;
     width: number;
     height: number;
-  }>({ imageData: null, dataHash: '', zoom: 1, scrollOffset: 0, width: 0, height: 0 });
+    barColor: string;
+    backgroundColor: string;
+  }>({ imageData: null, dataHash: '', zoom: 1, scrollOffset: 0, width: 0, height: 0, barColor: '', backgroundColor: '' });
   // =====================================================
   // RECORDING ANIMATION LOOP (separate from playback logic)
   // This runs independently when isRecording is true
@@ -254,6 +256,8 @@ export const Waveform: React.FC<WaveformProps> = ({
       cache.scrollOffset !== scrollOffset ||
       cache.width !== width ||
       cache.height !== height ||
+      cache.barColor !== barColor ||
+      cache.backgroundColor !== backgroundColor ||
       !cache.imageData;
 
     // PLAYBACK / STATIC Logic (uses existing zoom/scroll logic)
@@ -283,6 +287,8 @@ export const Waveform: React.FC<WaveformProps> = ({
       cache.scrollOffset = scrollOffset;
       cache.width = width;
       cache.height = height;
+      cache.barColor = barColor;
+      cache.backgroundColor = backgroundColor;
     } else if (cache.imageData) {
       ctx.putImageData(cache.imageData, 0, 0);
     }

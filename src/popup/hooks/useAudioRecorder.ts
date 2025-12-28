@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { getMimeTypeForFormat, isFormatSupported } from '../utils/formatUtils';
+import { getTempData, deleteTempData } from '../utils/storageManager';
 
 interface UseAudioRecorderReturn {
   isRecording: boolean;
@@ -242,6 +243,12 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
     if (isRecording) {
+      // Stop duration timer immediately so UI stats freeze
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
+      }
+
       // Stop local recorder if it exists
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         const recorder = mediaRecorderRef.current;
@@ -263,29 +270,42 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
       let finalBlob: Blob | null = null;
 
-      // Check storage directly for chunks first (avoid IPC transfer)
-      // Background script leaves chunks in storage for us to pick up
-      const storageResult = await chrome.storage.local.get(['recordingChunks', 'preferences']);
+      // Check IndexedDB first (new robust path)
+      try {
+        const tempBlob = await getTempData('temp_recording_blob');
+        if (tempBlob && tempBlob.size > 0) {
+          console.log('Got recording blob from IndexedDB, size:', tempBlob.size);
+          finalBlob = tempBlob;
 
-      if (storageResult.recordingChunks && storageResult.recordingChunks.length > 0) {
-        console.log('Reading recording chunks directly from storage:', storageResult.recordingChunks.length);
+          // Cleanup temp data
+          await deleteTempData('temp_recording_blob');
+          setAudioBlob(finalBlob);
+        }
+      } catch (error) {
+        console.error('Error reading from IndexedDB:', error);
+      }
 
-        // Determine mime type
-        const format = storageResult.preferences?.format || 'webm';
-        let mimeType = 'audio/webm';
-        if (format === 'ogg') mimeType = 'audio/ogg';
+      // Fallback: Check storage directly for chunks (legacy path, retained just in case)
+      if (!finalBlob) {
+        const storageResult = await chrome.storage.local.get(['recordingChunks', 'preferences']);
 
-        // Reconstruct blob locally
-        const chunks = storageResult.recordingChunks;
-        const blobs = chunks.map((chunk: number[]) => new Blob([new Uint8Array(chunk)], { type: mimeType }));
-        finalBlob = new Blob(blobs, { type: mimeType });
-        console.log('Reconstructed blob locally, size:', finalBlob.size);
+        if (storageResult.recordingChunks && storageResult.recordingChunks.length > 0) {
+          console.log('Reading recording chunks directly from storage (fallback):', storageResult.recordingChunks.length);
+          // ... legacy reconstruction logic ...
+          const format = storageResult.preferences?.format || 'webm';
+          let mimeType = 'audio/webm';
+          if (format === 'ogg') mimeType = 'audio/ogg';
 
-        // Cleanup chunks from storage now that we have them
-        chrome.storage.local.remove(['recordingChunks']);
+          const chunks = storageResult.recordingChunks;
+          const blobs = chunks.map((chunk: number[]) => new Blob([new Uint8Array(chunk)], { type: mimeType }));
+          finalBlob = new Blob(blobs, { type: mimeType });
 
-        setAudioBlob(finalBlob);
-      } else if (response && response.success && response.audioBlob && response.audioBlob.length > 0) {
+          chrome.storage.local.remove(['recordingChunks']);
+          setAudioBlob(finalBlob);
+        }
+      }
+
+      if (!finalBlob && response && response.success && response.audioBlob && response.audioBlob.length > 0) {
         // Fallback to IPC payload if storage failed but response has it (legacy path)
         const audioArray = new Uint8Array(response.audioBlob);
         finalBlob = new Blob([audioArray], { type: 'audio/webm' });
@@ -319,10 +339,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-        durationIntervalRef.current = null;
-      }
 
       // Clean up audio context
       if ((window as any).__recordingAudioContext) {

@@ -1,3 +1,5 @@
+import { saveTempData } from '../popup/utils/storageManager';
+
 // Background service worker for handling desktop audio capture
 
 let isRecording = false;
@@ -357,17 +359,20 @@ async function handleStopCapture(): Promise<Blob | null> {
         // Close offscreen document
         chrome.offscreen.closeDocument();
 
-        // Write chunks to storage ONCE (not continuously during recording)
-        // This is efficient: we only serialize everything once at the end
+        // Write chunks to IndexedDB (efficient for large files)
         if (recordingChunks.length > 0) {
-          const chunksArray = await Promise.all(
-            recordingChunks.map(async (chunk) => {
-              const arrayBuffer = await chunk.arrayBuffer();
-              return Array.from(new Uint8Array(arrayBuffer));
-            })
-          );
-          await chrome.storage.local.set({ recordingChunks: chunksArray });
-          console.log('Wrote', chunksArray.length, 'chunks to storage on stop');
+          try {
+            // Create a single blob from all chunks
+            // We use 'audio/webm' as generic type, popup will handle specifics
+            const fullBlob = new Blob(recordingChunks, { type: 'audio/webm' });
+
+            // Save to IndexedDB which can handle large blobs efficiently
+            // Bypasses the memory limit of serialization and chrome.storage
+            await saveTempData('temp_recording_blob', fullBlob);
+            console.log('Saved recording blob to IndexedDB, size:', fullBlob.size);
+          } catch (error) {
+            console.error('Error saving blob to IndexedDB:', error);
+          }
         }
 
         // DON'T reconstruct blob here - let popup read from storage directly

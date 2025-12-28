@@ -15,24 +15,67 @@ export interface RecordingWithAudio extends RecordingMetadata {
 }
 
 const DB_NAME = 'AudioRecorderDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'recordings';
+const TEMP_STORE_NAME = 'temp_store';
 
 // Initialize IndexedDB
 async function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
+
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
-    
+
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         objectStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
+      if (!db.objectStoreNames.contains(TEMP_STORE_NAME)) {
+        db.createObjectStore(TEMP_STORE_NAME);
+      }
     };
+  });
+}
+
+// Save temporary data (e.g., raw recording chunks/blob)
+export async function saveTempData(key: string, data: any): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([TEMP_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(TEMP_STORE_NAME);
+    const request = store.put(data, key);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Get temporary data
+export async function getTempData(key: string): Promise<any> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([TEMP_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(TEMP_STORE_NAME);
+    const request = store.get(key);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Delete temporary data
+export async function deleteTempData(key: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([TEMP_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(TEMP_STORE_NAME);
+    const request = store.delete(key);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
   });
 }
 
@@ -45,12 +88,12 @@ export async function saveRecording(
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    
+
     const recording = {
       ...metadata,
       audioData: audioData // Store as ArrayBuffer
     };
-    
+
     const request = store.put(recording);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
@@ -64,7 +107,7 @@ export async function getRecording(id: string): Promise<{ metadata: RecordingMet
     const transaction = db.transaction([STORE_NAME], 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(id);
-    
+
     request.onsuccess = () => {
       const result = request.result;
       if (result) {
@@ -77,7 +120,7 @@ export async function getRecording(id: string): Promise<{ metadata: RecordingMet
         resolve(null);
       }
     };
-    
+
     request.onerror = () => reject(request.error);
   });
 }
@@ -90,7 +133,7 @@ export async function getAllRecordingsMetadata(): Promise<RecordingMetadata[]> {
     const store = transaction.objectStore(STORE_NAME);
     // Use getAll() instead of cursor for better performance on small datasets
     const request = store.getAll();
-    
+
     request.onsuccess = () => {
       const allRecordings = request.result || [];
       // Extract only metadata and sort by timestamp descending
@@ -102,13 +145,13 @@ export async function getAllRecordingsMetadata(): Promise<RecordingMetadata[]> {
         format: rec.format,
         channelMode: rec.channelMode
       }));
-      
+
       // Sort by timestamp descending (most recent first)
       recordings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      
+
       resolve(recordings);
     };
-    
+
     request.onerror = () => reject(request.error);
   });
 }
@@ -120,7 +163,7 @@ export async function deleteRecording(id: string): Promise<void> {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.delete(id);
-    
+
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
@@ -145,7 +188,7 @@ export async function clearAllRecordings(): Promise<void> {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.clear();
-    
+
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
@@ -158,7 +201,7 @@ export async function updateRecordingName(id: string, newName: string): Promise<
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     const getRequest = store.get(id);
-    
+
     getRequest.onsuccess = () => {
       const recording = getRequest.result;
       if (recording) {
@@ -170,7 +213,7 @@ export async function updateRecordingName(id: string, newName: string): Promise<
         reject(new Error('Recording not found'));
       }
     };
-    
+
     getRequest.onerror = () => reject(getRequest.error);
   });
 }
@@ -183,23 +226,23 @@ export async function migrateFromChromeStorage(): Promise<number> {
         reject(new Error(chrome.runtime.lastError.message));
         return;
       }
-      
+
       const savedRecordings = result.savedRecordings || [];
       if (savedRecordings.length === 0) {
         resolve(0);
         return;
       }
-      
+
       let migratedCount = 0;
       const errors: Error[] = [];
-      
+
       // Migrate each recording
       for (const recording of savedRecordings) {
         try {
           // Convert audioData array back to ArrayBuffer
           const audioArray = new Uint8Array(recording.audioData);
           const arrayBuffer = audioArray.buffer;
-          
+
           const metadata: RecordingMetadata = {
             id: recording.id,
             name: recording.name,
@@ -208,7 +251,7 @@ export async function migrateFromChromeStorage(): Promise<number> {
             format: recording.format,
             channelMode: recording.channelMode
           };
-          
+
           await saveRecording(metadata, arrayBuffer);
           migratedCount++;
         } catch (error) {
@@ -216,7 +259,7 @@ export async function migrateFromChromeStorage(): Promise<number> {
           errors.push(error as Error);
         }
       }
-      
+
       // Clear chrome.storage.local recordings after successful migration
       if (migratedCount > 0) {
         chrome.storage.local.remove(['savedRecordings'], () => {
