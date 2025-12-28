@@ -446,21 +446,23 @@ const Popup: React.FC = () => {
   const saveRecordingToHistory = async (blob: Blob, name: string): Promise<void> => {
     try {
       console.log('Starting to save recording to history, blob size:', blob.size);
-      const format = preferences.format || 'webm';
+      // Always save as WAV internally for fast processing
+      // User's format preference (MP3, OGG, WebM) is applied only on download
+      const internalFormat = 'wav';
       const sampleRate = preferences.sampleRate ? parseInt(preferences.sampleRate) : undefined;
       const channelMode = preferences.channelMode || undefined;
       const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
-      const extension = getFileExtension(format);
+      const extension = 'wav';
 
-      // Convert audio to the target format with sample rate and channel mode
-      console.log('Converting audio format...');
-      const convertedBlob = await convertAudioFormat(blob, format, sampleRate, targetChannels);
-      console.log('Audio converted, converted blob size:', convertedBlob.size);
+      // Convert audio to WAV format with sample rate and channel mode
+      console.log('Converting audio to WAV for storage...');
+      const convertedBlob = await convertAudioFormat(blob, internalFormat, sampleRate, targetChannels);
+      console.log('Audio converted to WAV, size:', convertedBlob.size);
 
-      // Update name with correct extension if needed
+      // Update name with .wav extension for storage
       let recordingName = name;
       if (!name.endsWith(`.${extension}`)) {
-        // Remove any existing extension and add the correct one
+        // Remove any existing extension and add .wav
         const nameWithoutExt = name.replace(/\.[^/.]+$/, '');
         recordingName = `${nameWithoutExt}.${extension}`;
       }
@@ -475,7 +477,7 @@ const Popup: React.FC = () => {
         name: recordingName,
         timestamp: new Date().toISOString(),
         duration: recordingDuration,
-        format: format, // Store current format preference
+        format: internalFormat, // Always store as WAV internally
         channelMode: preferences.channelMode || 'stereo' // Store channel mode
       };
 

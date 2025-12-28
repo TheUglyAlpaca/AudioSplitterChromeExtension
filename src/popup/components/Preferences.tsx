@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { getAllRecordingsMetadata, getRecording, saveRecording, RecordingMetadata } from '../utils/storageManager';
-import { getFileExtension } from '../utils/formatUtils';
 
 interface PreferencesProps {
   onClose?: () => void;
@@ -52,144 +50,25 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
   const handleFormatChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newFormat = e.target.value;
     setFormat(newFormat);
-
-    // Save the new format immediately with the new value
+    // Just save the preference - recordings are stored as WAV internally
+    // and converted to this format only when downloaded
     savePreferences(newFormat);
-
-    // Update all saved recordings to use the new format
-    // Convert the audio data to the new format
-    chrome.storage.local.get(['preferences'], async (prefsResult) => {
-      try {
-        // Get all recordings from IndexedDB
-        const recordingsMetadata = await getAllRecordingsMetadata();
-        if (recordingsMetadata.length === 0) return;
-
-        // Import converter dynamically to avoid circular dependencies
-        const { convertAudioFormat } = await import('../utils/audioConverter');
-
-        // Get current sample rate and channel mode preferences
-        const currentSampleRate = prefsResult.preferences?.sampleRate ? parseInt(prefsResult.preferences.sampleRate) : undefined;
-        const currentChannelMode = prefsResult.preferences?.channelMode || undefined;
-        const targetChannels = currentChannelMode === 'mono' ? 1 : currentChannelMode === 'stereo' ? 2 : undefined;
-
-        // Convert all recordings to the new format
-        for (const metadata of recordingsMetadata) {
-          try {
-            // Load full recording
-            const fullRecording = await getRecording(metadata.id);
-            if (!fullRecording) continue;
-
-            // Reconstruct blob from ArrayBuffer
-            const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
-
-            // Convert to new format with sample rate and channel mode
-            const convertedBlob = await convertAudioFormat(originalBlob, newFormat, currentSampleRate, targetChannels);
-            const convertedArrayBuffer = await convertedBlob.arrayBuffer();
-
-            // Update filename extension
-            const extension = getFileExtension(newFormat);
-            let recordingName = metadata.name;
-            const nameWithoutExt = recordingName.replace(/\.[^/.]+$/, '');
-            recordingName = `${nameWithoutExt}.${extension}`;
-
-            // Save back to IndexedDB
-            const updatedMetadata: RecordingMetadata = {
-              ...metadata,
-              name: recordingName,
-              format: newFormat
-            };
-
-            await saveRecording(updatedMetadata, convertedArrayBuffer);
-          } catch (error) {
-            console.error(`Error converting recording ${metadata.id}:`, error);
-          }
-        }
-      } catch (error) {
-        console.error('Error updating recordings format:', error);
-      }
-    });
   };
 
   const handleSampleRateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSampleRate = e.target.value;
     setSampleRate(newSampleRate);
+    // Just save the preference - sample rate is applied when saving new recordings
+    // and when downloading existing recordings
     savePreferences(undefined, newSampleRate);
-
-    // Update all saved recordings to use the new sample rate
-    chrome.storage.local.get(['preferences'], async (prefsResult) => {
-      try {
-        const recordingsMetadata = await getAllRecordingsMetadata();
-        if (recordingsMetadata.length === 0) return;
-
-        const { convertAudioFormat } = await import('../utils/audioConverter');
-        const format = prefsResult.preferences?.format || 'webm';
-        const channelMode = prefsResult.preferences?.channelMode || undefined;
-        const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
-        const targetSampleRate = parseInt(newSampleRate);
-
-        for (const metadata of recordingsMetadata) {
-          try {
-            const fullRecording = await getRecording(metadata.id);
-            if (!fullRecording) continue;
-
-            const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
-            const convertedBlob = await convertAudioFormat(originalBlob, format, targetSampleRate, targetChannels);
-            const convertedArrayBuffer = await convertedBlob.arrayBuffer();
-
-            await saveRecording(metadata, convertedArrayBuffer);
-          } catch (error) {
-            console.error(`Error converting recording ${metadata.id}:`, error);
-          }
-        }
-      } catch (error) {
-        console.error('Error updating recordings sample rate:', error);
-      }
-    });
   };
 
   const handleChannelModeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newChannelMode = e.target.value;
     setChannelMode(newChannelMode);
+    // Just save the preference - channel mode is applied when saving new recordings
+    // and when downloading existing recordings
     savePreferences(undefined, undefined, newChannelMode);
-
-    // Update all saved recordings to use the new channel mode
-    chrome.storage.local.get(['preferences'], async (prefsResult) => {
-      try {
-        const recordingsMetadata = await getAllRecordingsMetadata();
-        if (recordingsMetadata.length === 0) return;
-
-        const { convertAudioFormat } = await import('../utils/audioConverter');
-        const format = prefsResult.preferences?.format || 'webm';
-        const sampleRate = prefsResult.preferences?.sampleRate ? parseInt(prefsResult.preferences.sampleRate) : undefined;
-        const targetChannels = newChannelMode === 'mono' ? 1 : newChannelMode === 'stereo' ? 2 : undefined;
-
-        for (const metadata of recordingsMetadata) {
-          try {
-            const fullRecording = await getRecording(metadata.id);
-            if (!fullRecording) continue;
-
-            const originalBlob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
-            const convertedBlob = await convertAudioFormat(originalBlob, format, sampleRate, targetChannels);
-            const convertedArrayBuffer = await convertedBlob.arrayBuffer();
-
-            const updatedMetadata: RecordingMetadata = {
-              ...metadata,
-              channelMode: newChannelMode
-            };
-
-            await saveRecording(updatedMetadata, convertedArrayBuffer);
-          } catch (error) {
-            console.error(`Error converting recording ${metadata.id}:`, error);
-          }
-        }
-
-        // Force a preference change to trigger RecentRecordings to reload after all conversions complete
-        // This ensures the UI updates to show the correct channel mode icons
-        savePreferences(undefined, undefined, newChannelMode);
-      } catch (error) {
-        console.error('Error updating recordings channel mode:', error);
-      }
-    });
   };
 
   const handleBitDepthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -224,8 +103,8 @@ export const Preferences: React.FC<PreferencesProps> = ({ onClose }) => {
         </select>
       </div>
 
-      <div className="preference-item" title="Audio file format for exports (WAV: lossless, WebM/MP3/OGG: compressed)">
-        <label className="preference-label">file type</label>
+      <div className="preference-item" title="Audio file format for downloads (WAV: lossless, WebM/MP3/OGG: compressed)">
+        <label className="preference-label">download file type</label>
         <select
           className="preference-select"
           value={format}
