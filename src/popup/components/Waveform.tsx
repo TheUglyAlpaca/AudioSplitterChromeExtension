@@ -190,9 +190,8 @@ export const Waveform: React.FC<WaveformProps> = ({
           const value = currentData[index] || 0;
           const barHeight = (value / 255) * maxBarHeight;
           const x = i * barWidth;
-          // Center bars vertically: start from center minus half the bar height
-          // Add small offset to account for channel indicator at top
-          const y = height / 2 - barHeight / 2 + 12;
+          // True vertical centering
+          const y = (height - barHeight) / 2;
           ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
         }
       }
@@ -270,8 +269,8 @@ export const Waveform: React.FC<WaveformProps> = ({
         const value = data[dataIndex] || 0;
         const barHeight = (value / 255) * maxBarHeight;
         const x = i * barWidth;
-        // Add small offset to visually center (account for channel indicator)
-        const y = (height - barHeight) / 2 + 18;
+        // True vertical centering
+        const y = (height - barHeight) / 2;
         ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
       }
 
@@ -464,6 +463,8 @@ export const Waveform: React.FC<WaveformProps> = ({
       )}
       <canvas
         ref={canvasRef}
+        width={width}
+        height={height}
         style={{
           width: '100%',
           height: '100%',
