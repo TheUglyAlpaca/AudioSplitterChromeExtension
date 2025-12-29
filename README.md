@@ -33,26 +33,28 @@ A Chrome extension for recording browser audio output with waveform visualizatio
 - **Automatic Tab Audio Capture**: Records audio from the current Chrome tab automatically without requiring user selection.
 - **Non-Muting Recording**: Audio continues to play through your speakers/headphones while recording.
 - **Background Recording**: Recording continues even when the extension popup is closed.
-- **Real-time Waveform Visualization**: See live waveform visualization while recording.
+- **Real-time Waveform Visualization**: See live, high-performance waveform visualization while recording.
+- **Optimized Internal Storage**: Recordings are stored internally as WAV to ensure zero-loss quality and eliminate the need for re-conversion when changing export preferences.
 - **Tab Title Naming**: Optional automatic naming using the current tab title (available in Preferences).
 
 ### Playback & Controls
 - **Play/Pause Controls**: Standard audio playback controls.
 - **Waveform Scrubbing**: Click anywhere on the waveform to seek to that position.
-- **Non-Destructive Trimming**: Use handles on the waveform to select a specific region for playback and export.
+- **Non-Destructive Trimming**: Use handles on the waveform to select a specific region. Trim values are automatically persisted and restored for each recording.
 - **Smooth Playhead**: Interpolated playhead movement for smooth visual updates.
 - **Vertical Zoom**: Zoom in/out to increase the waveform's vertical height for detailed manual alignment and viewing.
+- **Persistence & Restore**: Each recording restores its last used trim values and play position when reloaded.
 - **Return to Start**: Reset playback position to the beginning (or start of trim).
 - **Loop Playback**: Toggle loop mode for continuous playback of the selected region.
 
 ### Format & Preferences
 - **Full Format Support**: Record and export in **WAV**, **WEBM**, **MP3**, or **OGG** formats.
 - **MP3 Encoding**: High-quality MP3 encoding using `lamejs`.
-- **Automatic Conversion**: Existing recordings are automatically converted when format, sample rate, or channel preferences change.
 - **Sample Rate Selection**: Choose from 44.1kHz, 48kHz, 96kHz, or 192kHz.
-- **Channel Mode**: Select mono or stereo recording with visual icons in history.
-- **Bit Depth (WAV)**: Choose 16-bit, 24-bit, or 32-bit for WAV exports.
+- **Channel Mode**: Select mono or stereo.
+- **Bit Depth (WAV)**: Choose 16-bit, 24-bit, or 32-bit for exports.
 - **Volume Normalization**: Optional automatic peak normalization to maximize loudness without clipping.
+- **Instant Configuration**: Preferences change export behavior on-the-fly without requiring re-processing of the original recording.
 - **Persistent Preferences**: All settings are saved and persist across sessions.
 
 ### Recent Recordings
@@ -64,15 +66,14 @@ A Chrome extension for recording browser audio output with waveform visualizatio
 ### UI/UX
 - **Modern Design**: Sleek, clean interface using the Inter font.
 - **Multiple Themes**: Choose between **Dark**, **Light**, **Midnight**, and **Forest** themes, each with unique icons and color palettes.
+- **Minimalist Iconography**: Custom-designed theme icons (Sun, Moon, Wave, Tree) and a unified multi-color extension icon representing all themes.
+- **Dynamic Visuals**: Processing state indicators, pulsing recording button, and live waveform processing.
 - **Responsive Layout**: Optimized to fit perfectly within the extension popup without unnecessary scrolling.
-- **Status Indicators**: Visual feedback for active recording and background processing.
 
 ## Installation
 
 ### Prerequisites
 - Node.js (v14 or higher)
-- Python 3.10+ (for SAM Audio isolation feature)
-- CUDA-compatible GPU (recommended for SAM Audio, but CPU works too)
 - npm or yarn
 
 ### Build Instructions
@@ -155,9 +156,12 @@ npm run build
   - Custom PCM encoders for WAV (16/24/32-bit).
 - **Chrome APIs**: 
   - `chrome.tabCapture` - For capturing tab audio.
-  - `chrome.storage.local` - For preferences and settings.
+  - `chrome.offscreen` - For reliable background audio processing and recording.
+  - `chrome.storage.local` - For preferences, settings, and trim metadata.
   - `chrome.storage.session` - For temporary UI state.
-- **Storage**: IndexedDB (via a custom `storageManager`) for large audio data, ensuring performance even with dozens of high-quality recordings.
+- **Storage Strategy**: 
+  - **IndexedDB**: High-capacity storage for multi-track audio data.
+  - **Internal WAV**: All recordings are stored as raw WAV data to ensure consistency and eliminate re-conversion cpu overhead.
 
 ### Storage Capacity
 
@@ -177,18 +181,10 @@ npm run build
 > The features listed below are experimental and may not be fully implemented or available on the current branch.
 
 ### SAM Audio Isolation (Meta SAM-Audio)
-The extension includes a framework for integration with Meta's SAM-Audio model for isolating or removing specific sounds from recordings.
+> [!NOTE]
+> This feature is currently in progress and experimental.
 
-#### Features
-- **Text Prompting**: Describe sounds in natural language (e.g., "A man speaking", "Guitar playing").
-- **Residual Mode**: Get everything except the target sound.
-- **Local Processing**: Designed to run via a local Python server for privacy.
-
-#### Setup (Development Branch Only)
-1. **Install Python Dependencies:** `pip install -r sam_server/requirements.txt`
-2. **Model Access:** Request access to [SAM-Audio on Hugging Face](https://huggingface.co/facebook/sam-audio-large).
-3. **Start Server:** `python sam_server/server.py`
-4. **Use:** Click the "AI" tab or brain icon to process audio.
+The extension is being developed to include integration with Meta's SAM-Audio model for isolating or removing specific sounds from recordings using natural language prompts.
 
 ### Suno API Integration
 We are investigating the Suno API as a potential option for high-quality, AI-driven stem splitting and vocal/instrumental separation.
