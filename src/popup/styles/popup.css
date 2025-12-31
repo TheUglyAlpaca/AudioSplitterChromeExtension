@@ -256,6 +256,205 @@ body.rainbow-mode .header .icon-button svg {
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.5px;
+  display: flex;
+}
+
+.app-title span {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* --- Theme-Specific Hover Animations --- */
+
+/* Midnight (Blue): Crazy Wave */
+.midnight-mode .app-title:hover span {
+  animation: wave-crazy 0.6s infinite;
+  animation-delay: calc(var(--index) * 0.05s);
+  color: #38bdf8;
+}
+
+@keyframes wave-crazy {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+
+  25% {
+    transform: translateY(-8px) rotate(-10deg);
+  }
+
+  50% {
+    transform: translateY(0) rotate(0);
+  }
+
+  75% {
+    transform: translateY(4px) rotate(10deg);
+  }
+}
+
+/* Dark (Hellfire): Warping/Flickering */
+body:not(.light-mode):not(.midnight-mode):not(.forest-mode):not(.rainbow-mode) .app-title:hover span {
+  animation: hellfire-warp 0.4s ease-in-out infinite;
+  animation-delay: calc(var(--index) * -0.05s);
+  color: #ff4d00;
+  text-shadow: 0 0 8px #ff0000, 0 0 12px #ff8800;
+  filter: blur(0.3px);
+}
+
+@keyframes hellfire-warp {
+
+  0%,
+  100% {
+    transform: scale(1) skew(0) translateY(0);
+    color: #ff4d00;
+  }
+
+  25% {
+    transform: scale(1.1, 0.9) skew(5deg) translateY(-2px);
+    color: #ff8800;
+  }
+
+  50% {
+    transform: scale(0.9, 1.2) skew(-5deg) translateY(-4px);
+    color: #ff2200;
+  }
+
+  75% {
+    transform: scale(1.05, 0.95) skew(2deg) translateY(-2px);
+    color: #ffaa00;
+  }
+}
+
+/* Rainbow (Slot Machine): Spinning X-axis */
+.rainbow-mode .app-title:hover span {
+  animation: slot-machine-spin 0.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation-delay: calc(var(--index) * 0.1s);
+  transform-origin: center center;
+}
+
+@keyframes slot-machine-spin {
+  0% {
+    transform: rotateX(0deg);
+    color: #ff0000;
+  }
+
+  20% {
+    color: #ffff00;
+  }
+
+  40% {
+    color: #00ff00;
+  }
+
+  60% {
+    color: #00ffff;
+  }
+
+  80% {
+    color: #0000ff;
+  }
+
+  100% {
+    transform: rotateX(360deg);
+    color: #ff00ff;
+  }
+}
+
+/* Light Theme Variants */
+
+/* Variant 0: Bubble Pop */
+.light-mode .app-title.variant-0:hover span {
+  animation: bubble-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
+  animation-delay: calc(var(--index) * 0.05s);
+  color: #3b82f6;
+}
+
+@keyframes bubble-pop {
+
+  0%,
+  100% {
+    transform: scale(1) translateY(0);
+  }
+
+  50% {
+    transform: scale(1.4) translateY(-8px);
+    opacity: 0.8;
+  }
+}
+
+/* Variant 1: Jelly Jiggle */
+.light-mode .app-title.variant-1:hover span {
+  animation: jelly-wobble 0.8s ease-in-out infinite;
+  animation-delay: calc(var(--index) * 0.08s);
+  color: #3b82f6;
+}
+
+@keyframes jelly-wobble {
+
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+
+  25% {
+    transform: scale(1.2, 0.8) skewX(10deg);
+  }
+
+  50% {
+    transform: scale(0.8, 1.2) skewX(-10deg);
+  }
+
+  75% {
+    transform: scale(1.1, 0.9) skewX(5deg);
+  }
+}
+
+/* Variant 2: Floating Cloud */
+.light-mode .app-title.variant-2:hover span {
+  animation: cloud-drift 2s ease-in-out infinite;
+  animation-delay: calc(var(--index) * -0.2s);
+  color: #3b82f6;
+}
+
+@keyframes cloud-drift {
+
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  25% {
+    transform: translate(4px, -4px);
+  }
+
+  50% {
+    transform: translate(0, -8px);
+  }
+
+  75% {
+    transform: translate(-4px, -4px);
+  }
+}
+
+/* Forest Mode: Swaying Leaf */
+.forest-mode .app-title:hover span {
+  animation: sway-nature 1.5s ease-in-out infinite;
+  animation-delay: calc(var(--index) * 0.15s);
+  transform-origin: bottom center;
+  color: #10b981;
+}
+
+@keyframes sway-nature {
+
+  0%,
+  100% {
+    transform: rotate(-5deg) translateX(-1px);
+  }
+
+  50% {
+    transform: rotate(15deg) translateX(2px);
+  }
 }
 
 .header-actions {
@@ -295,7 +494,7 @@ body.rainbow-mode .header .icon-button svg {
   cursor: pointer;
   font-size: 14px;
   position: relative;
-  transition: color 0.2s;
+  transition: color 0.2s, transform 0.2s;
   flex: 1;
   text-align: center;
   display: flex;
@@ -329,6 +528,7 @@ body.rainbow-mode .header .icon-button svg {
 
 .tab:hover {
   color: #ccc;
+  transform: scale(1.1);
 }
 
 .tab.active {
@@ -517,13 +717,14 @@ body.rainbow-mode .header .icon-button svg {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
   width: 40px;
   height: 40px;
 }
 
 .control-button:hover {
   background-color: var(--bg-hover);
+  transform: scale(1.1);
 }
 
 .control-button.active {
@@ -544,6 +745,7 @@ body.rainbow-mode .header .icon-button svg {
 
 .play-button:hover {
   background-color: var(--border-color);
+  transform: scale(1.2);
 }
 
 .play-button.playing {
@@ -577,15 +779,17 @@ body.rainbow-mode .header .icon-button svg {
   animation: pulse-idle 2s ease-in-out infinite;
 }
 
-.record-button:hover {
-  background-color: #ff3333;
-  border-color: #ff5555;
-}
-
 .record-button.recording {
   background-color: #cc0000;
   border-color: #ff6666;
   animation: pulse-recording 1.5s infinite;
+}
+
+.record-button:hover {
+  background-color: #ff3333;
+  border-color: #ff5555;
+  transform: scale(1.1);
+  animation: none;
 }
 
 .record-button-inner {

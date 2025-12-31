@@ -637,6 +637,17 @@ const Popup: React.FC = () => {
     }
   };
 
+  const [lightVariant, setLightVariant] = useState(0);
+
+  const handleTitleMouseEnter = () => {
+    if (theme === 'light') {
+      const variants = [0, 1, 2];
+      const otherVariants = variants.filter(v => v !== lightVariant);
+      const nextVariant = otherVariants[Math.floor(Math.random() * otherVariants.length)];
+      setLightVariant(nextVariant);
+    }
+  };
+
   const handleZoomIn = () => {
     setZoom(Math.min(zoom * 2, 8));
   };
@@ -832,7 +843,17 @@ const Popup: React.FC = () => {
   return (
     <div className={`popup-container ${theme !== 'dark' ? `${theme}-mode` : ''}`} style={{ position: 'relative' }}>
       <header className="header">
-        <h1 className="app-title">Chrome Recorder</h1>
+        <h1
+          className={`app-title ${theme === 'light' ? `variant-${lightVariant}` : ''}`}
+          aria-label="Chrome Recorder"
+          onMouseEnter={handleTitleMouseEnter}
+        >
+          {"Chrome Recorder".split("").map((char, i) => (
+            <span key={i} style={{ "--index": i } as React.CSSProperties}>
+              {char === " " ? "\u00A0" : char}
+            </span>
+          ))}
+        </h1>
         <div className="header-actions">
           <button className="icon-button" title={`Current Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`} onClick={handleThemeToggle}>
             {theme === 'light' ? (
