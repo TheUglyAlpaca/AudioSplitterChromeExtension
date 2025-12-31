@@ -17,7 +17,6 @@ interface WaveformProps {
   trimEnd?: number;
   onTrimChange?: (start: number, end: number) => void;
   liveDataRef?: React.MutableRefObject<Uint8Array | null>;
-  isProcessing?: boolean;
   onZoomChange?: (multiplier: number) => void;
 }
 
@@ -47,7 +46,6 @@ export const Waveform: React.FC<WaveformProps> = ({
   trimEnd = 0,
   onTrimChange,
   liveDataRef,
-  isProcessing = false,
   onZoomChange
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -483,54 +481,6 @@ export const Waveform: React.FC<WaveformProps> = ({
         userSelect: 'none'
       }}
     >
-      {/* Processing overlay with loading bar */}
-      {isProcessing && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 100,
-          borderRadius: '12px'
-        }}>
-          <span style={{
-            color: '#fff',
-            fontSize: '14px',
-            marginBottom: '12px',
-            fontWeight: 500
-          }}>
-            Processing...
-          </span>
-          <div style={{
-            width: '60%',
-            height: '4px',
-            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            borderRadius: '2px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              width: '30%',
-              height: '100%',
-              backgroundColor: theme === 'rainbow' ? undefined : barColor,
-              backgroundImage: theme === 'rainbow' ? 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)' : undefined,
-              borderRadius: '2px',
-              animation: 'processingBar 1.2s ease-in-out infinite'
-            }} />
-          </div>
-          <style>{`
-            @keyframes processingBar {
-              0% { transform: translateX(-100%); }
-              100% { transform: translateX(400%); }
-            }
-          `}</style>
-        </div>
-      )}
 
       {channelMode && (
         <div className="waveform-channel-indicator">

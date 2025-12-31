@@ -7,19 +7,16 @@ import { getFileExtension } from './utils/formatUtils';
 import { convertAudioFormat, cropAudioBlob } from './utils/audioConverter';
 import { saveRecording, migrateFromChromeStorage, updateRecordingName, deleteRecording, getRecording } from './utils/storageManager';
 
-
 import { Waveform } from './components/Waveform';
 import { AudioInfo } from './components/AudioInfo';
 import { RecordingControls } from './components/RecordingControls';
 import { RecordButton } from './components/RecordButton';
 import { RecentRecordings } from './components/RecentRecordings';
 import { Preferences } from './components/Preferences';
-import { SAMProcessor } from './components/SAMProcessor';
-import { BrainIcon } from './components/BrainIcon';
 import './styles/popup.css';
 
 const Popup: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'recording' | 'recent' | 'preferences' | 'ai'>('recording');
+  const [activeTab, setActiveTab] = useState<'recording' | 'recent' | 'preferences'>('recording');
   const [recordingName, setRecordingName] = useState<string>('');
   const [recordingTimestamp, setRecordingTimestamp] = useState<Date>(new Date());
   const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
@@ -32,7 +29,6 @@ const Popup: React.FC = () => {
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
   const [loadedAudioDuration, setLoadedAudioDuration] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'midnight' | 'forest' | 'rainbow'>('light');
   const [preferences, setPreferences] = useState<{
     format?: string;
@@ -64,15 +60,12 @@ const Popup: React.FC = () => {
     analyzeStream,
     clearWaveform,
     listenForRemoteUpdates,
-    liveWaveformDataRef // Get the live data ref
+    liveWaveformDataRef
   } = useWaveform();
 
-  // Load all initial data in a single batch to reduce startup time
   useEffect(() => {
-    // Batch all storage reads together - include session storage for current recording state
     chrome.storage.local.get(['migratedToIndexedDB', 'isLightMode', 'theme', 'preferences'], async (result) => {
-      // Set theme immediately (no async)
-      let initialTheme: 'dark' | 'light' | 'midnight' | 'forest' = 'dark';
+      let initialTheme: 'dark' | 'light' | 'midnight' | 'forest' | 'rainbow' = 'dark';
       if (result.theme) {
         initialTheme = result.theme;
       } else if (result.isLightMode) {
@@ -85,17 +78,13 @@ const Popup: React.FC = () => {
         document.body.classList.add(`${initialTheme}-mode`);
       }
 
-      // Set preferences immediately
       if (result.preferences) {
         setPreferences(result.preferences);
       }
 
-      // Check recording state (non-blocking)
       checkRecordingState();
 
-      // Migrate in background (non-blocking, deferred)
       if (!result.migratedToIndexedDB) {
-        // Defer migration to not block UI
         setTimeout(async () => {
           try {
             const count = await migrateFromChromeStorage();
@@ -110,37 +99,19 @@ const Popup: React.FC = () => {
       }
     });
 
-    // Restore current recording state from session storage (persists across popup close/reopen)
     chrome.storage.session.get(['currentRecordingState'], (sessionResult) => {
       if (sessionResult.currentRecordingState) {
         const savedState = sessionResult.currentRecordingState;
-        if (savedState.recordingName) {
-          setRecordingName(savedState.recordingName);
-        }
-        if (savedState.recordingTimestamp) {
-          setRecordingTimestamp(new Date(savedState.recordingTimestamp));
-        }
-        if (savedState.currentRecordingId) {
-          setCurrentRecordingId(savedState.currentRecordingId);
-        }
-        if (savedState.currentRecordingChannelMode) {
-          setCurrentRecordingChannelMode(savedState.currentRecordingChannelMode);
-        }
-        // Restore trim values if they were saved
-        if (savedState.trimStart !== undefined) {
-          setTrimStart(savedState.trimStart);
-        }
-        if (savedState.trimEnd !== undefined && savedState.trimEnd > 0) {
-          setTrimEnd(savedState.trimEnd);
-        }
-        // Restore loaded audio duration
-        if (savedState.loadedAudioDuration !== undefined && savedState.loadedAudioDuration > 0) {
-          setLoadedAudioDuration(savedState.loadedAudioDuration);
-        }
+        if (savedState.recordingName) setRecordingName(savedState.recordingName);
+        if (savedState.recordingTimestamp) setRecordingTimestamp(new Date(savedState.recordingTimestamp));
+        if (savedState.currentRecordingId) setCurrentRecordingId(savedState.currentRecordingId);
+        if (savedState.currentRecordingChannelMode) setCurrentRecordingChannelMode(savedState.currentRecordingChannelMode);
+        if (savedState.trimStart !== undefined) setTrimStart(savedState.trimStart);
+        if (savedState.trimEnd !== undefined && savedState.trimEnd > 0) setTrimEnd(savedState.trimEnd);
+        if (savedState.loadedAudioDuration !== undefined && savedState.loadedAudioDuration > 0) setLoadedAudioDuration(savedState.loadedAudioDuration);
       }
     });
 
-    // Listen for preference changes
     const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
       if (changes.preferences) {
         setPreferences(changes.preferences.newValue || {});
@@ -161,9 +132,7 @@ const Popup: React.FC = () => {
     };
   }, [checkRecordingState]);
 
-  // Persist current recording state to session storage when it changes
   useEffect(() => {
-    // Only persist if we have a recording loaded (name is set)
     if (recordingName || currentRecordingId) {
       chrome.storage.session.set({
         currentRecordingState: {
@@ -171,51 +140,38 @@ const Popup: React.FC = () => {
           recordingTimestamp: recordingTimestamp.toISOString(),
           currentRecordingId,
           currentRecordingChannelMode,
-          // Only persist trim values when NOT recording to avoid stale values
           trimStart: isRecording ? 0 : trimStart,
           trimEnd: isRecording ? 0 : trimEnd,
-          // Persist loaded audio duration
           loadedAudioDuration: isRecording ? 0 : loadedAudioDuration
         }
       });
     }
   }, [recordingName, recordingTimestamp, currentRecordingId, currentRecordingChannelMode, trimStart, trimEnd, isRecording, loadedAudioDuration]);
 
-  // Reload recording from storage when popup reopens with a saved currentRecordingId but no audioBlob
   useEffect(() => {
     const reloadRecording = async () => {
-      // Only reload if we have an ID but no blob (popup was minimized with a recording loaded)
       if (currentRecordingId && !audioBlob && !isRecording) {
-        console.log('Reloading recording from storage:', currentRecordingId);
         try {
           const fullRecording = await getRecording(currentRecordingId);
           if (fullRecording) {
-            // Restore the audio blob
             const blob = new Blob([fullRecording.audioData], { type: 'audio/webm' });
             setAudioBlob(blob);
-
-            // Set duration from metadata if not already set
             if (loadedAudioDuration === 0 && fullRecording.metadata.duration) {
               setLoadedAudioDuration(fullRecording.metadata.duration);
             }
-
-            console.log('Recording reloaded from storage, size:', blob.size);
           }
         } catch (error) {
           console.error('Error reloading recording:', error);
         }
       }
     };
-
     reloadRecording();
   }, [currentRecordingId, audioBlob, isRecording, loadedAudioDuration, setAudioBlob]);
 
-  // Update recording name and timestamp when recording starts
   useEffect(() => {
     if (isRecording) {
       const now = new Date();
       setRecordingTimestamp(now);
-      // Only set default name if useTabTitle is disabled or tab title couldn't be retrieved
       if (!preferences.useTabTitle || !recordingName) {
         setRecordingName(`recording ${formatDate(now)}`);
       }
@@ -224,76 +180,45 @@ const Popup: React.FC = () => {
     }
   }, [isRecording]);
 
-  // Analyze stream when recording
   useEffect(() => {
     if (isRecording) {
       const stream = getAudioStream();
       if (stream) {
         analyzeStream(stream);
       } else {
-        // Use remote waveform data from offscreen recorder
         const cleanup = listenForRemoteUpdates();
         return cleanup;
       }
     } else {
-      // When recording stops, clear the live stream waveform
-      // The full waveform will be shown from the audioBlob
       clearWaveform();
     }
   }, [isRecording, getAudioStream, analyzeStream, clearWaveform, listenForRemoteUpdates]);
 
-  // Analyze audio blob when recording stops - show full waveform
   useEffect(() => {
-    // Track if this effect has been cancelled
     let cancelled = false;
-
     if (audioBlob && !isRecording) {
-      console.log('Analyzing audio blob, size:', audioBlob.size);
-      // Clear any existing waveform first
       clearWaveform();
-
-      // Small delay to ensure stream analysis is stopped
       const timeoutId = setTimeout(async () => {
-        if (cancelled) return; // Don't proceed if effect was cancelled
-
+        if (cancelled) return;
         try {
-          // Analyze the ORIGINAL blob for waveform display (no format conversion)
-          // This avoids issues with MP3/WAV conversion and is faster
-          // Format conversion only happens on save/download
           await analyzeAudio(audioBlob);
+          if (cancelled) return;
 
-          if (cancelled) return; // Check again after async operation
-
-          console.log('Audio analysis complete, waveform should be visible');
-
-          // Create audio element for playback using the ORIGINAL blob
           const audioUrl = URL.createObjectURL(audioBlob);
-
-          // Clean up old audio URL if exists
           if (audioRef.current && audioRef.current.src) {
             const oldUrl = audioRef.current.src;
-            if (oldUrl.startsWith('blob:')) {
-              URL.revokeObjectURL(oldUrl);
-            }
+            if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
           }
 
-          // Create new audio element
           const audio = new Audio(audioUrl);
           audioRef.current = audio;
 
-          // Set up event listeners
           audio.addEventListener('loadedmetadata', () => {
-            // Audio is ready - capture the final duration in state
             const audioDuration = audio.duration;
             const finalDuration = (audioDuration && isFinite(audioDuration)) ? audioDuration : recordingDuration;
-
-            console.log('Audio loaded, element duration:', audioDuration, 'fallback duration:', recordingDuration, 'final duration:', finalDuration);
-
-            // Capture duration in state so it doesn't change during playback
             setLoadedAudioDuration(finalDuration || 0);
             setCurrentPlayTime(audio.currentTime || 0);
             setTrimStart(0);
-            // Ensure trimEnd is a valid number
             setTrimEnd(finalDuration || 0);
           });
 
@@ -302,29 +227,15 @@ const Popup: React.FC = () => {
             setCurrentPlayTime(0);
           });
 
-          // Don't use timeupdate event - it fires too infrequently (~250ms)
-          // We'll use requestAnimationFrame for smooth updates instead
-
-          audio.addEventListener('error', (e) => {
-            console.error('Audio playback error:', e);
-          });
-
-          // Load the audio
+          audio.addEventListener('error', (e) => console.error('Audio playback error:', e));
           audio.load();
-
-          // Reset play state - trim values will be set by loadedmetadata listener
           setCurrentPlayTime(0);
           setStartTime(0);
           setTrimStart(0);
-          // Note: Don't reset trimEnd here - it will be set properly by loadedmetadata
         } catch (error) {
-          if (!cancelled) {
-            console.error('Error analyzing audio:', error);
-          }
+          if (!cancelled) console.error('Error analyzing audio:', error);
         }
       }, 100);
-
-      // Cleanup function - cancel pending operations
       return () => {
         cancelled = true;
         clearTimeout(timeoutId);
@@ -335,9 +246,7 @@ const Popup: React.FC = () => {
   const getTabTitle = async (): Promise<string | null> => {
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tabs.length > 0 && tabs[0].title) {
-        return tabs[0].title;
-      }
+      if (tabs.length > 0 && tabs[0].title) return tabs[0].title;
       return null;
     } catch (error) {
       console.error('Error getting tab title:', error);
@@ -345,54 +254,62 @@ const Popup: React.FC = () => {
     }
   };
 
+  const saveRecordingToHistory = async (blob: Blob, name: string): Promise<void> => {
+    try {
+      const internalFormat = 'wav';
+      const sampleRate = preferences.sampleRate ? parseInt(preferences.sampleRate) : undefined;
+      const channelMode = preferences.channelMode || undefined;
+      const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
+      const extension = 'wav';
+
+      const convertedBlob = await convertAudioFormat(blob, internalFormat, sampleRate, targetChannels);
+      let storageName = name;
+      if (!name.endsWith(`.${extension}`)) {
+        const nameWithoutExt = name.replace(/\.[^/.]+$/, '');
+        storageName = `${nameWithoutExt}.${extension}`;
+      }
+
+      const arrayBuffer = await convertedBlob.arrayBuffer();
+      const recordingId = Date.now().toString();
+      const metadata = {
+        id: recordingId,
+        name: storageName,
+        timestamp: new Date().toISOString(),
+        duration: recordingDuration,
+        format: internalFormat,
+        channelMode: preferences.channelMode || 'stereo'
+      };
+
+      setCurrentRecordingId(recordingId);
+      await saveRecording(metadata, arrayBuffer);
+    } catch (error) {
+      console.error('Failed to save recording:', error);
+      throw error;
+    }
+  };
+
   const handleRecordClick = async () => {
     if (isRecording) {
-      // Show processing state
-      setIsProcessing(true);
-
       try {
         const stoppedBlob = await stopRecording();
-        // Save recording to Recent Recordings after stopping
-        // Use the current recordingName (which may have been edited)
-        // Check for valid blob - at least 1KB to be considered valid
         if (stoppedBlob && stoppedBlob.size > 1024) {
-          console.log('Recording stopped, blob size:', stoppedBlob.size);
           const nameToSave = recordingName || `recording ${formatDate(new Date())}`;
-          console.log('Saving recording with name:', nameToSave);
-
           try {
             await saveRecordingToHistory(stoppedBlob, nameToSave);
-            console.log('Recording saved to history successfully!');
           } catch (error: any) {
-            console.error('Error saving recording to history:', error);
+            console.error('Error saving recording:', error);
             const errorMessage = error?.message || 'Unknown error occurred';
-
-            // Provide user-friendly message for quota exceeded
-            if (errorMessage.includes('quota') || errorMessage.includes('Quota')) {
-              alert('Storage limit reached. The oldest recordings have been removed to make space. Your new recording has been saved.');
+            if (errorMessage.includes('quota')) {
+              alert('Storage limit reached. The oldest recordings have been removed to make space.');
             } else {
-              alert(`Recording stopped but failed to save to recent recordings: ${errorMessage}`);
+              alert(`Recording failed to save: ${errorMessage}`);
             }
-          }
-        } else {
-          console.warn('No valid blob to save after stopping recording. Blob:', stoppedBlob);
-          if (stoppedBlob) {
-            console.warn('Blob exists but size is too small:', stoppedBlob.size, 'bytes (minimum 1KB required)');
-            if (stoppedBlob.size > 0) {
-              alert(`Recording captured but audio data is very small (${stoppedBlob.size} bytes). The recording may be corrupted or too short.`);
-            } else {
-              alert('Recording stopped but no audio data was captured. Please try recording again.');
-            }
-          } else {
-            alert('Recording stopped but no audio data was captured. Please try recording again.');
           }
         }
-      } finally {
-        // Always hide processing state when done
-        setIsProcessing(false);
+      } catch (error) {
+        console.error('Error stopping recording:', error);
       }
     } else {
-      // Clear previous recording state before starting new one
       if (audioRef.current) {
         audioRef.current.pause();
         if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
@@ -404,25 +321,18 @@ const Popup: React.FC = () => {
       setAudioBlob(null);
       setIsPlaying(false);
       setCurrentPlayTime(0);
-      setIsPlaying(false);
-      setCurrentPlayTime(0);
       setStartTime(0);
       setTrimStart(0);
       setTrimEnd(0);
       setCurrentRecordingChannelMode(undefined);
 
-      // If useTabTitle is enabled, get the tab title and set it as the recording name
       if (preferences.useTabTitle) {
         const tabTitle = await getTabTitle();
         if (tabTitle) {
-          // Clean up the tab title (remove invalid filename characters)
           const cleanedTitle = tabTitle.replace(/[<>:"/\\|?*]/g, '_').trim();
-          if (cleanedTitle) {
-            setRecordingName(cleanedTitle);
-          }
+          if (cleanedTitle) setRecordingName(cleanedTitle);
         }
       } else {
-        // Reset to default name format
         setRecordingName(`recording ${formatDate(new Date())}`);
       }
 
@@ -430,85 +340,17 @@ const Popup: React.FC = () => {
         await startRecording();
       } catch (error: any) {
         console.error('Failed to start recording:', error);
-        const errorMessage = error?.message || 'Unknown error';
-        // Only show user-friendly error, not technical details
-        if (errorMessage.includes('MediaDevices API not available')) {
-          alert('Recording failed: Browser API not available. Please try reloading the extension.');
-        } else if (errorMessage.includes('No active tab')) {
-          alert('Recording failed: No active tab found. Please open a tab and try again.');
-        } else {
-          alert(`Recording failed: ${errorMessage}`);
-        }
+        alert(`Recording failed: ${error?.message || 'Unknown error'}`);
       }
     }
   };
 
-  const saveRecordingToHistory = async (blob: Blob, name: string): Promise<void> => {
-    try {
-      console.log('Starting to save recording to history, blob size:', blob.size);
-      // Always save as WAV internally for fast processing
-      // User's format preference (MP3, OGG, WebM) is applied only on download
-      const internalFormat = 'wav';
-      const sampleRate = preferences.sampleRate ? parseInt(preferences.sampleRate) : undefined;
-      const channelMode = preferences.channelMode || undefined;
-      const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
-      const extension = 'wav';
-
-      // Convert audio to WAV format with sample rate and channel mode
-      console.log('Converting audio to WAV for storage...');
-      const convertedBlob = await convertAudioFormat(blob, internalFormat, sampleRate, targetChannels);
-      console.log('Audio converted to WAV, size:', convertedBlob.size);
-
-      // Update name with .wav extension for storage
-      let recordingName = name;
-      if (!name.endsWith(`.${extension}`)) {
-        // Remove any existing extension and add .wav
-        const nameWithoutExt = name.replace(/\.[^/.]+$/, '');
-        recordingName = `${nameWithoutExt}.${extension}`;
-      }
-
-      console.log('Converting blob to array buffer...');
-      const arrayBuffer = await convertedBlob.arrayBuffer();
-      console.log('Array buffer converted, size:', arrayBuffer.byteLength);
-
-      const recordingId = Date.now().toString();
-      const metadata = {
-        id: recordingId,
-        name: recordingName,
-        timestamp: new Date().toISOString(),
-        duration: recordingDuration,
-        format: internalFormat, // Always store as WAV internally
-        channelMode: preferences.channelMode || 'stereo' // Store channel mode
-      };
-
-      console.log('Recording metadata created, ID:', recordingId, 'Duration:', recordingDuration);
-
-      // Store the current recording ID so we can update it later if name is edited
-      setCurrentRecordingId(recordingId);
-
-      // Save recording to IndexedDB (much larger capacity)
-      try {
-        await saveRecording(metadata, arrayBuffer);
-        console.log('Recording saved to IndexedDB successfully! ID:', recordingId);
-      } catch (error) {
-        console.error('Error saving recording to IndexedDB:', error);
-        throw error;
-      }
-    } catch (error) {
-      console.error('Failed to save recording:', error);
-      throw error; // Re-throw to be caught by caller
-    }
-  };
-
-  // Smooth playhead update using requestAnimationFrame
   useEffect(() => {
     if (isPlaying && audioRef.current) {
       const updatePlayhead = () => {
         if (audioRef.current && isPlaying) {
           const currentTime = audioRef.current.currentTime;
           const duration = audioRef.current.duration;
-
-          // Check for trim boundaries
           const effectiveEnd = (trimEnd > 0 && trimEnd < duration) ? trimEnd : duration;
           const effectiveStart = trimStart > 0 ? trimStart : 0;
 
@@ -521,33 +363,18 @@ const Popup: React.FC = () => {
               audioRef.current.currentTime = effectiveStart;
               setIsPlaying(false);
               setCurrentPlayTime(effectiveStart);
-              cancelAnimationFrame(playheadAnimationFrameRef.current!);
-              playheadAnimationFrameRef.current = null;
               return;
             }
           } else {
             setCurrentPlayTime(currentTime);
           }
-
           playheadAnimationFrameRef.current = requestAnimationFrame(updatePlayhead);
         }
       };
-
-      // Start the animation loop
       playheadAnimationFrameRef.current = requestAnimationFrame(updatePlayhead);
-
       return () => {
-        if (playheadAnimationFrameRef.current) {
-          cancelAnimationFrame(playheadAnimationFrameRef.current);
-          playheadAnimationFrameRef.current = null;
-        }
+        if (playheadAnimationFrameRef.current) cancelAnimationFrame(playheadAnimationFrameRef.current);
       };
-    } else {
-      // Stop animation when not playing
-      if (playheadAnimationFrameRef.current) {
-        cancelAnimationFrame(playheadAnimationFrameRef.current);
-        playheadAnimationFrameRef.current = null;
-      }
     }
   }, [isPlaying, isLooping, trimStart, trimEnd]);
 
@@ -557,58 +384,21 @@ const Popup: React.FC = () => {
         if (isPlaying) {
           audioRef.current.pause();
           setIsPlaying(false);
-          if (playIntervalRef.current) {
-            clearInterval(playIntervalRef.current);
-            playIntervalRef.current = null;
-          }
-          if (playheadAnimationFrameRef.current) {
-            cancelAnimationFrame(playheadAnimationFrameRef.current);
-            playheadAnimationFrameRef.current = null;
-          }
         } else {
-          // Ensure audio is loaded
-          if (audioRef.current.readyState < 2) {
-            audioRef.current.load();
-          }
-
-          // Immediately update current time to show playhead before play starts
-          // If current time is outside trimmed range, jump to start
+          if (audioRef.current.readyState < 2) audioRef.current.load();
           const effectiveStart = trimStart > 0 ? trimStart : 0;
           const effectiveEnd = (trimEnd > 0 && trimEnd < (audioRef.current.duration || 0)) ? trimEnd : (audioRef.current.duration || 0);
 
           if (audioRef.current.currentTime < effectiveStart || audioRef.current.currentTime >= effectiveEnd) {
             audioRef.current.currentTime = effectiveStart;
           }
-          setCurrentPlayTime(audioRef.current.currentTime || 0);
-
           await audioRef.current.play();
           setIsPlaying(true);
-
-          // Update current time immediately after play starts
-          setCurrentPlayTime(audioRef.current.currentTime || 0);
-
-          // Only use native loop if NO trim is applied (start is 0 and end is full duration)
-          // otherwise we handle loop manually in the animation frame
           const isTrimmed = trimStart > 0 || (trimEnd > 0 && trimEnd < audioRef.current.duration);
-
-          if (isLooping && !isTrimmed) {
-            audioRef.current.loop = true;
-          } else {
-            audioRef.current.loop = false;
-          }
+          audioRef.current.loop = isLooping && !isTrimmed;
         }
       } catch (error) {
         console.error('Playback error:', error);
-        // Try loading again if play failed
-        if (audioRef.current) {
-          audioRef.current.load();
-          try {
-            await audioRef.current.play();
-            setIsPlaying(true);
-          } catch (retryError) {
-            console.error('Retry playback failed:', retryError);
-          }
-        }
       }
     }
   };
@@ -616,7 +406,6 @@ const Popup: React.FC = () => {
   const handleLoop = () => {
     setIsLooping(!isLooping);
     if (audioRef.current) {
-      // Native loop only if not trimmed
       const isTrimmed = trimStart > 0 || (trimEnd > 0 && trimEnd < audioRef.current.duration);
       audioRef.current.loop = !isLooping && !isTrimmed;
     }
@@ -638,7 +427,6 @@ const Popup: React.FC = () => {
   };
 
   const [lightVariant, setLightVariant] = useState(0);
-
   const handleTitleMouseEnter = () => {
     if (theme === 'light') {
       const variants = [0, 1, 2];
@@ -648,23 +436,13 @@ const Popup: React.FC = () => {
     }
   };
 
-  const handleZoomIn = useCallback(() => {
-    setZoom(z => Math.min(z * 2, 8));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoom(z => Math.max(z / 2, 1));
-  }, []);
-
-  const handleZoomChange = useCallback((multiplier: number) => {
-    setZoom(z => Math.max(1, Math.min(10, z * multiplier)));
-  }, []);
+  const handleZoomIn = useCallback(() => setZoom(z => Math.min(z * 2, 8)), []);
+  const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 2, 1)), []);
+  const handleZoomChange = useCallback((multiplier: number) => setZoom(z => Math.max(1, Math.min(10, z * multiplier))), []);
 
   const handleTrimChange = (start: number, end: number) => {
     setTrimStart(start);
     setTrimEnd(end);
-
-    // If playing, adjust playback to stay within trim bounds
     if (audioRef.current) {
       if (audioRef.current.currentTime < start) {
         audioRef.current.currentTime = start;
@@ -672,18 +450,14 @@ const Popup: React.FC = () => {
       } else if (audioRef.current.currentTime > end) {
         audioRef.current.currentTime = start;
         setCurrentPlayTime(start);
-        // Optional: stop or loop? For now just jump back
       }
     }
   };
 
   const handleDownload = async () => {
     if (audioBlob) {
-      // Use current format preference, but preserve original channel mode for playback
       const format = preferences.format || 'webm';
       const sampleRate = preferences.sampleRate ? parseInt(preferences.sampleRate) : undefined;
-      // For download, use current preference (user might want to convert)
-      // But for playback, we use the original channel mode
       const channelMode = preferences.channelMode || undefined;
       const targetChannels = channelMode === 'mono' ? 1 : channelMode === 'stereo' ? 2 : undefined;
       const extension = getFileExtension(format);
@@ -691,146 +465,71 @@ const Popup: React.FC = () => {
       let blobToProcess = audioBlob;
       const duration = audioRef.current?.duration || 0;
 
-      // Crop audio if trim range is set
       if (trimStart > 0 || (trimEnd > 0 && trimEnd < duration)) {
         try {
-          console.log('Cropping audio...', { trimStart, trimEnd, duration });
-          // Note: cropAudioBlob expects seconds, same as our trim state
           blobToProcess = await cropAudioBlob(audioBlob, trimStart, trimEnd || duration);
-          console.log('Audio cropped, new size:', blobToProcess.size);
         } catch (error) {
           console.error('Error cropping audio:', error);
-          // Fallback to original blob if crop fails
         }
       }
 
-      // Convert audio to the target format with sample rate and channel mode
       const convertedBlob = await convertAudioFormat(blobToProcess, format, sampleRate, targetChannels);
-
-      // Remove any existing extension from recording name
       const nameWithoutExt = (recordingName || 'recording').replace(/\.[^/.]+$/, '');
-      const filename = `${nameWithoutExt}.${extension}`;
-      downloadAudio(convertedBlob, filename);
+      downloadAudio(convertedBlob, `${nameWithoutExt}.${extension}`);
     }
   };
 
   const handleDelete = async () => {
-    // First, stop any active recording to clean up streams
     if (isRecording) {
-      try {
-        await stopRecording();
-      } catch (error) {
-        console.error('Error stopping recording during delete:', error);
-      }
+      try { await stopRecording(); } catch (e) { }
     }
-
-    // Wait a moment to ensure streams are fully released
     await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Stop and clean up audio
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      // Remove all event listeners by creating a new audio element
+      if (audioRef.current.src?.startsWith('blob:')) URL.revokeObjectURL(audioRef.current.src);
       audioRef.current = null;
     }
-
-    // Clear play interval if it exists
-    if (playIntervalRef.current) {
-      clearInterval(playIntervalRef.current);
-      playIntervalRef.current = null;
-    }
-
-    // Clear playhead animation frame if it exists
-    if (playheadAnimationFrameRef.current) {
-      cancelAnimationFrame(playheadAnimationFrameRef.current);
-      playheadAnimationFrameRef.current = null;
-    }
-
-    // Clear all state to go back to default view
     setIsPlaying(false);
     setIsLooping(false);
     setCurrentPlayTime(0);
-    setStartTime(0);
-    setStartTime(0);
     setTrimStart(0);
     setTrimEnd(0);
     setZoom(1);
-
-    // Clear waveform data
     clearWaveform();
-
-    // Clear recording-related state
     setRecordingName('');
-    setRecordingTimestamp(new Date());
     setAudioBlob(null);
     setIsRecording(false);
     setRecordingDuration(0);
     setCurrentRecordingId(null);
     setCurrentRecordingChannelMode(undefined);
 
-    // Clear background recording state and ensure streams are released
     try {
       await chrome.runtime.sendMessage({ action: 'clearRecording' });
-      // Also explicitly stop any active capture
       await chrome.runtime.sendMessage({ action: 'stopCapture' });
-    } catch (error) {
-      console.error('Failed to clear recording in background:', error);
-    }
+    } catch (e) { }
 
-    // Delete from storage if it was a saved recording
     if (currentRecordingId) {
-      try {
-        await deleteRecording(currentRecordingId);
-        console.log('Deleted recording from storage:', currentRecordingId);
-      } catch (error) {
-        console.error('Error deleting recording from storage:', error);
-      }
+      try { await deleteRecording(currentRecordingId); } catch (e) { }
     }
-
-    // Clear storage to ensure no stale stream IDs
-    await chrome.storage.local.remove([
-      'recordingStreamId',
-      'recordingTabId',
-      'recordingStartTime',
-      'recordingChunks'
-    ]);
-
-    // Clear session storage for current recording state
+    await chrome.storage.local.remove(['recordingStreamId', 'recordingTabId', 'recordingStartTime', 'recordingChunks']);
     await chrome.storage.session.remove(['currentRecordingState']);
   };
 
   const handleThemeToggle = () => {
     const themes: ('light' | 'dark' | 'midnight' | 'forest' | 'rainbow')[] = ['light', 'dark', 'midnight', 'forest', 'rainbow'];
-    const currentIndex = themes.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % themes.length;
-    const newTheme = themes[nextIndex];
-
-    setTheme(newTheme);
+    const nextTheme = themes[(themes.indexOf(theme) + 1) % themes.length];
+    setTheme(nextTheme);
     document.body.className = '';
-    if (newTheme !== 'dark') {
-      document.body.classList.add(`${newTheme}-mode`);
-    }
-    chrome.storage.local.set({ theme: newTheme });
+    if (nextTheme !== 'dark') document.body.classList.add(`${nextTheme}-mode`);
+    chrome.storage.local.set({ theme: nextTheme });
   };
 
-  // Calculate effective display values respecting trim
-  // Derived values for UI display - use loadedAudioDuration when available (prevents duration changing during playback)
-  const totalDuration = loadedAudioDuration > 0
-    ? loadedAudioDuration
-    : (isRecording ? recordingDuration : (recordingDuration || 0));
-
+  const totalDuration = loadedAudioDuration > 0 ? loadedAudioDuration : (isRecording ? recordingDuration : (recordingDuration || 0));
   const effectiveStart = trimStart > 0 ? trimStart : 0;
   const effectiveEnd = (trimEnd > 0 && trimEnd < totalDuration) ? trimEnd : totalDuration;
-  const isTrimmed = trimStart > 0 || (trimEnd > 0 && trimEnd < totalDuration);
-
-  const displayDuration = isRecording ? recordingDuration : (isTrimmed ? effectiveEnd - effectiveStart : totalDuration);
-  // For time, show relative time within the trim (starts at 0)
-  const displayTime = isRecording ? recordingDuration : (isTrimmed ? Math.max(0, currentPlayTime - effectiveStart) : currentPlayTime);
-  // Start time is the trim start (or 0)
+  const isTrimmedValue = trimStart > 0 || (trimEnd > 0 && trimEnd < totalDuration);
+  const displayDuration = isRecording ? recordingDuration : (isTrimmedValue ? effectiveEnd - effectiveStart : totalDuration);
+  const displayTime = isRecording ? recordingDuration : (isTrimmedValue ? Math.max(0, currentPlayTime - effectiveStart) : currentPlayTime);
   const displayStartTime = isRecording ? 0 : effectiveStart;
 
   const getThemeColor = () => {
@@ -838,119 +537,42 @@ const Popup: React.FC = () => {
       case 'light': return '#3b82f6';
       case 'midnight': return '#38bdf8';
       case 'forest': return '#fbbf24';
-      case 'dark':
-      default:
-        return '#4ade80';
+      case 'rainbow': return '#4ade80';
+      default: return '#4ade80';
     }
   };
 
   return (
     <div className={`popup-container ${theme !== 'dark' ? `${theme}-mode` : ''}`} style={{ position: 'relative' }}>
       <header className="header">
-        <h1
-          className={`app-title ${theme === 'light' ? `variant-${lightVariant}` : ''}`}
-          aria-label="Chrome Recorder"
-          onMouseEnter={handleTitleMouseEnter}
-        >
+        <h1 className={`app-title ${theme === 'light' ? `variant-${lightVariant}` : ''}`} aria-label="Chrome Recorder" onMouseEnter={handleTitleMouseEnter}>
           {"Chrome Recorder".split("").map((char, i) => (
-            <span key={i} style={{ "--index": i } as React.CSSProperties}>
-              {char === " " ? "\u00A0" : char}
-            </span>
+            <span key={i} style={{ "--index": i } as React.CSSProperties}>{char === " " ? "\u00A0" : char}</span>
           ))}
         </h1>
         <div className="header-actions">
           <button className="icon-button" title={`Current Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`} onClick={handleThemeToggle}>
             {theme === 'light' ? (
-              // Sun Icon
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>
             ) : theme === 'midnight' ? (
-              // Wave Icon for Midnight
-              <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor">
-                <path d="M471,79.483c-12.212-6.551-22.696-15.974-30.534-27.339l-13.796-20l-13.797,20
-                  c-7.839,11.365-18.33,20.788-30.542,27.339c-12.212,6.56-26.11,10.271-41,10.28c-14.89-0.009-28.78-3.72-41-10.28
-                  c-12.204-6.551-22.694-15.974-30.534-27.339l-13.796-20l-13.797,20c-7.839,11.365-18.33,20.788-30.533,27.339
-                  c-12.22,6.56-26.11,10.271-41,10.28c-14.89-0.009-28.788-3.72-41-10.28c-12.212-6.551-22.703-15.974-30.543-27.339l-13.796-20
-                  l-13.796,20C63.694,63.509,53.212,72.932,41,79.483c-12.212,6.56-26.11,10.271-41,10.28v33.517
-                  c20.509,0.009,39.94-5.161,56.864-14.263c10.534-5.66,20.119-12.839,28.466-21.236c8.356,8.398,17.932,15.576,28.466,21.236
-                  c16.932,9.102,36.356,14.272,56.873,14.263c20.508,0.009,39.932-5.161,56.864-14.263c10.534-5.66,20.119-12.839,28.466-21.236
-                  c8.347,8.398,17.932,15.576,28.466,21.236c16.932,9.102,36.355,14.272,56.864,14.263c20.517,0.009,39.94-5.161,56.873-14.263
-                  c10.534-5.66,20.11-12.839,28.466-21.236c8.347,8.398,17.932,15.576,28.466,21.236c16.924,9.102,36.355,14.272,56.864,14.263
-                  V89.763C497.11,89.754,483.212,86.043,471,79.483z" />
-                <path d="M440.466,230.432l-13.796-20l-13.797,20c-7.839,11.365-18.33,20.78-30.542,27.339
-                  c-12.212,6.56-26.11,10.271-41,10.271s-28.78-3.712-41-10.271c-12.204-6.559-22.694-15.974-30.534-27.339l-13.796-20l-13.797,20
-                  c-7.839,11.365-18.33,20.78-30.533,27.339c-12.22,6.56-26.11,10.271-41,10.271c-14.89,0-28.788-3.712-41-10.271
-                  c-12.212-6.559-22.703-15.974-30.543-27.339l-13.796-20l-13.796,20c-7.84,11.365-18.322,20.78-30.534,27.339
-                  c-12.212,6.56-26.11,10.271-41,10.271v33.526c20.509,0,39.94-5.17,56.864-14.263c10.534-5.66,20.119-12.838,28.466-21.245
-                  c8.356,8.407,17.932,15.585,28.466,21.245c16.932,9.094,36.356,14.263,56.873,14.263c20.508,0,39.932-5.17,56.864-14.263
-                  c10.534-5.66,20.119-12.838,28.466-21.245c8.347,8.407,17.932,15.585,28.466,21.245c16.932,9.094,36.355,14.263,56.864,14.263
-                  c20.517,0,39.94-5.17,56.873-14.263c10.534-5.66,20.11-12.838,28.466-21.245c8.347,8.407,17.932,15.585,28.466,21.245
-                  c16.924,9.094,36.355,14.263,56.864,14.263v-33.526c-14.89,0-28.788-3.712-41-10.271
-                  C458.788,251.212,448.304,241.797,440.466,230.432z" />
-                <path d="M440.466,408.721l-13.796-20l-13.797,20c-7.839,11.364-18.33,20.78-30.542,27.338
-                  c-12.212,6.56-26.11,10.271-41,10.271s-28.78-3.712-41-10.271c-12.204-6.559-22.694-15.974-30.534-27.338l-13.796-20l-13.797,20
-                  c-7.839,11.364-18.33,20.78-30.533,27.338c-12.22,6.56-26.11,10.271-41,10.271c-14.89,0-28.788-3.712-41-10.271
-                  c-12.212-6.559-22.703-15.974-30.543-27.338l-13.796-20l-13.796,20C63.694,420.085,53.212,429.5,41,436.059
-                  c-12.212,6.56-26.11,10.271-41,10.271v33.526c20.509,0,39.94-5.17,56.864-14.271c10.534-5.662,20.119-12.83,28.466-21.238
-                  c8.356,8.407,17.932,15.576,28.466,21.238c16.932,9.101,36.356,14.271,56.873,14.271c20.508,0,39.932-5.17,56.864-14.271
-                  c10.534-5.662,20.119-12.83,28.466-21.238c8.347,8.407,17.932,15.576,28.466,21.238c16.932,9.101,36.355,14.271,56.864,14.271
-                  c20.517,0,39.94-5.17,56.873-14.271c10.534-5.662,20.11-12.83,28.466-21.238c8.347,8.407,17.932,15.576,28.466,21.238
-                  c16.924,9.101,36.355,14.271,56.864,14.271V446.33c-14.89,0-28.788-3.712-41-10.271C458.788,429.5,448.304,420.085,440.466,408.721
-                  z" />
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor"><path d="M471,79.483c-12.212-6.551-22.696-15.974-30.534-27.339l-13.796-20l-13.797,20c-7.839,11.365-18.33,20.788-30.542,27.339c-12.212,6.56-26.11,10.271-41,10.28c-14.89-0.009-28.78-3.72-41-10.28c-12.204-6.551-22.694-15.974-30.534-27.339l-13.796-20l-13.797,20c-7.839,11.365-18.33,20.788-30.533,27.339c-12.22,6.56-26.11,10.271-41,10.28c-14.89-0.009-28.788-3.72-41-10.28c-12.212-6.551-22.703-15.974-30.543-27.339l-13.796-20l-13.796,20C63.694,63.509,53.212,72.932,41,79.483c-12.212,6.56-26.11,10.271-41,10.28v33.517c20.509,0.009,39.94-5.161,56.864-14.263c10.534-5.66,20.119-12.839,28.466-21.236c8.356,8.398,17.932,15.576,28.466,21.236c16.932,9.102,36.356,14.272,56.873,14.263c20.508,0.009,39.932-5.161,56.864-14.263c10.534-5.66,20.119-12.839,28.466-21.236c8.347,8.398,17.932,15.576,28.466,21.236c16.932,9.102,36.355,14.272,56.864,14.263c20.517,0.009,39.94-5.161,56.873-14.263c10.534-5.66,20.11-12.839,28.466-21.236c8.347,8.398,17.932,15.576,28.466,21.236c16.924,9.102,36.355,14.272,56.864,14.263V89.763C497.11,89.754,483.212,86.043,471,79.483z" /><path d="M440.466,230.432l-13.796-20l-13.797,20c-7.839,11.365-18.33,20.78-30.542,27.339c-12.212,6.56-26.11,10.271-41,10.271s-28.78-3.712-41-10.271c-12.204-6.559-22.694-15.974-30.534-27.339l-13.796-20l-13.797,20c-7.839,11.365-18.33,20.78-30.533,27.339c-12.22,6.56-26.11,10.271-41,10.271c-14.89,0-28.788-3.712-41-10.271c-12.212-6.559-22.703-15.974-30.543-27.339l-13.796-20l-13.796,20c-7.84,11.365-18.322,20.78-30.534,27.339c-12.212,6.56-26.11,10.271-41,10.271v33.526c20.509,0,39.94-5.17,56.864-14.263c10.534-5.66,20.119-12.838,28.466-21.245c8.356,8.407,17.932,15.585,28.466,21.245c16.932,9.094,36.356,14.263,56.873,14.263c20.508,0,39.932-5.17,56.864-14.263c10.534-5.66,20.119-12.838,28.466-21.245c8.347,8.407,17.932,15.585,28.466,21.245c16.932,9.094,36.355,14.263,56.864,14.263c20.517,0,39.94-5.17,56.873-14.263c10.534-5.66,20.11-12.838,28.466-21.245c8.347,8.407,17.932,15.585,28.466,21.245c16.924,9.094,36.355,14.263,56.864,14.263v-33.526c-14.89,0-28.788-3.712-41-10.271C458.788,251.212,448.304,241.797,440.466,230.432z" /><path d="M440.466,408.721l-13.796-20l-13.797,20c-7.839,11.364-18.33,20.78-30.542,27.338c-12.212,6.56-26.11,10.271-41,10.271s-28.78-3.712-41-10.271c-12.204-6.559-22.694-15.974-30.534-27.338l-13.796-20l-13.797,20c-7.839,11.364-18.33,20.78-30.533,27.338c-12.22,6.56-26.11,10.271-41,10.271c-14.89,0-28.788-3.712-41-10.271c-12.212-6.559-22.703-15.974-30.543-27.338l-13.796-20l-13.796,20C63.694,420.085,53.212,429.5,41,436.059c-12.212,6.56-26.11,10.271-41,10.271v33.526c20.509,0,39.94-5.17,56.864-14.271c10.534-5.662,20.119-12.83,28.466-21.238c8.356,8.407,17.932,15.576,28.466,21.238c16.932,9.101,36.356,14.271,56.873,14.271c20.508,0,39.932-5.17,56.864-14.271c10.534-5.662,20.119-12.83,28.466-21.238c8.347,8.407,17.932,15.576,28.466,21.238c16.932,9.101,36.355,14.271,56.864,14.271c20.517,0,39.94-5.17,56.873-14.271c10.534-5.662,20.11-12.83,28.466-21.238c8.347,8.407,17.932,15.576,28.466,21.238c16.924,9.101,36.355,14.271,56.864,14.271V446.33c-14.89,0-28.788-3.712-41-10.271C458.788,429.5,448.304,420.085,440.466,408.721z" /></svg>
             ) : theme === 'forest' ? (
-              // Tree Icon for Forest
-              <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor">
-                <path d="M465.771,234.587c0-26.914-10.749-51.289-28.142-69.166c0.629-4.688,1.075-9.437,1.075-14.301
-                  c0-54.151-40.625-98.726-93.05-105.14C319.308,17.754,281.874,0,240.206,0C160.476,0,95.853,64.624,95.853,144.361
-                  c0,0.422,0.062,0.821,0.062,1.236c-29.975,20.27-49.686,54.58-49.686,93.494c0,53.346,37.08,97.937,86.842,109.667
-                  c10.089,24.69,34.318,42.106,62.636,42.106c10.557,0,20.508-2.486,29.407-6.798V512h77.528v-83.988l30.236-51.657
-                  c30.95-2.256,57.097-21.766,68.743-49.033C439.087,313.128,465.771,277.022,465.771,234.587z M260.615,342.229
-                  c0.66,0.928,1.343,1.826,2.041,2.724l-3.43,1.396C259.725,344.984,260.208,343.625,260.615,342.229z M284.874,405.402v-40.579
-                  c7.181,4.366,15.076,7.642,23.492,9.622L284.874,405.402z" />
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor"><path d="M465.771,234.587c0-26.914-10.749-51.289-28.142-69.166c0.629-4.688,1.075-9.437,1.075-14.301c0-54.151-40.625-98.726-93.05-105.14C319.308,17.754,281.874,0,240.206,0C160.476,0,95.853,64.624,95.853,144.361c0,0.422,0.062,0.821,0.062,1.236c-29.975,20.27-49.686,54.58-49.686,93.494c0,53.346,37.08,97.937,86.842,109.667c10.089,24.69,34.318,42.106,62.636,42.106c10.557,0,20.508-2.486,29.407-6.798V512h77.528v-83.988l30.236-51.657c30.95-2.256,57.097-21.766,68.743-49.033C439.087,313.128,465.771,277.022,465.771,234.587z M260.615,342.229c0.66,0.928,1.343,1.826,2.041,2.724l-3.43,1.396C259.725,344.984,260.208,343.625,260.615,342.229z M284.874,405.402v-40.579c7.181,4.366,15.076,7.642,23.492,9.622L284.874,405.402z" /></svg>
             ) : theme === 'rainbow' ? (
-              // Rainbow Icon
-              <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor">
-                <path d="M256,172v8a12,12,0,0,1-24,0v-8a104,104,0,0,0-208,0v8a12,12,0,0,1-24,0v-8a128,128,0,0,1,256,0ZM128,140a36.04061,36.04061,0,0,0-36,36v4a12,12,0,0,0,24,0v-4a12,12,0,0,1,24,0v4a12,12,0,0,0,24,0v-4A36.04061,36.04061,0,0,0,128,140Zm0-48a84.0953,84.0953,0,0,0-84,84v4a12,12,0,0,0,24,0v-4a60,60,0,0,1,120,0v4a12,12,0,0,0,24,0v-4A84.0953,84.0953,0,0,0,128,92Z" />
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M256,172v8a12,12,0,0,1-24,0v-8a104,104,0,0,0-208,0v8a12,12,0,0,1-24,0v-8a128,128,0,0,1,256,0ZM128,140a36.04061,36.04061,0,0,0-36,36v4a12,12,0,0,0,24,0v-4a12,12,0,0,1,24,0v4a12,12,0,0,0,24,0v-4A36.04061,36.04061,0,0,0,128,140Zm0-48a84.0953,84.0953,0,0,0-84,84v4a12,12,0,0,0,24,0v-4a60,60,0,0,1,120,0v4a12,12,0,0,0,24,0v-4A84.0953,84.0953,0,0,0,128,92Z" /></svg>
             ) : (
-              // Moon Icon for Dark (Default)
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>
             )}
           </button>
         </div>
       </header>
 
       <nav className="tabs">
-        <button
-          className={`tab ${activeTab === 'recording' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recording')}
-        >
-          Recording
-          {isRecording && <span className="recording-indicator"></span>}
+        <button className={`tab ${activeTab === 'recording' ? 'active' : ''}`} onClick={() => setActiveTab('recording')}>
+          Recording {isRecording && <span className="recording-indicator"></span>}
         </button>
-        <button
-          className={`tab ${activeTab === 'recent' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recent')}
-        >
-          My Recordings
-        </button>
-        {/* <button
-          className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ai')}
-        >
-          AI
-        </button> */}
-        <button
-          className={`tab ${activeTab === 'preferences' ? 'active' : ''}`}
-          onClick={() => setActiveTab('preferences')}
-        >
-          Settings
-        </button>
+        <button className={`tab ${activeTab === 'recent' ? 'active' : ''}`} onClick={() => setActiveTab('recent')}>My Recordings</button>
+        <button className={`tab ${activeTab === 'preferences' ? 'active' : ''}`} onClick={() => setActiveTab('preferences')}>Settings</button>
       </nav>
 
       {activeTab === 'recording' && (
@@ -963,16 +585,12 @@ const Popup: React.FC = () => {
               onDelete={audioBlob ? handleDelete : undefined}
               onNameChange={async (newName) => {
                 setRecordingName(newName);
-                // Update the name in IndexedDB if this recording is already saved
                 if (currentRecordingId) {
                   try {
                     const format = preferences.format || 'webm';
-                    const extension = getFileExtension(format);
-                    const updatedName = newName.endsWith(`.${extension}`) ? newName : `${newName}.${extension}`;
+                    const updatedName = newName.endsWith(`.${getFileExtension(format)}`) ? newName : `${newName}.${getFileExtension(format)}`;
                     await updateRecordingName(currentRecordingId, updatedName);
-                  } catch (error) {
-                    console.error('Error updating recording name:', error);
-                  }
+                  } catch (e) { }
                 }
               }}
             />
@@ -989,24 +607,16 @@ const Popup: React.FC = () => {
               isRecording={isRecording}
               channelMode={currentRecordingChannelMode || (preferences.channelMode as 'mono' | 'stereo' | undefined)}
               barColor={getThemeColor()}
-              backgroundColor={
-                theme === 'light' ? '#f5f5f5' :
-                  theme === 'midnight' ? '#1e293b' :
-                    theme === 'forest' ? '#064e3b' :
-                      theme === 'rainbow' ? '#1a1a1a' :
-                        '#1f1f1f'
-              }
+              backgroundColor={theme === 'light' ? '#f5f5f5' : theme === 'midnight' ? '#1e293b' : theme === 'forest' ? '#064e3b' : theme === 'rainbow' ? '#1a1a1a' : '#1f1f1f'}
               theme={theme}
               trimStart={trimStart}
               trimEnd={trimEnd}
               onTrimChange={handleTrimChange}
               liveDataRef={liveWaveformDataRef}
-              isProcessing={isProcessing}
               onZoomChange={handleZoomChange}
             />
           </div>
 
-          {/* Show play controls only when not recording and have audio */}
           {!isRecording && audioBlob && (
             <div className="playback-info">
               <span className="playback-hint">Click to Seek • Scroll to Pan & Zoom</span>
@@ -1033,10 +643,7 @@ const Popup: React.FC = () => {
           />
 
           <div className="record-button-container">
-            <RecordButton
-              isRecording={isRecording}
-              onClick={handleRecordClick}
-            />
+            <RecordButton isRecording={isRecording} onClick={handleRecordClick} />
           </div>
         </div>
       )}
@@ -1045,88 +652,18 @@ const Popup: React.FC = () => {
         <div className="recent-recordings-wrapper">
           <RecentRecordings
             onSelectRecording={(recording) => {
-              // Load selected recording
               const audioArray = new Uint8Array(recording.audioData);
               const blob = new Blob([audioArray], { type: 'audio/webm' });
               setAudioBlob(blob);
-              // Set duration if available in metadata as a fallback for the audio element
-              if (recording.duration) {
-                setRecordingDuration(recording.duration);
-              }
-              // Set the name without extension for display
-              const nameWithoutExt = recording.name.replace(/\.[^/.]+$/, '');
-              setRecordingName(nameWithoutExt);
+              if (recording.duration) setRecordingDuration(recording.duration);
+              setRecordingName(recording.name.replace(/\.[^/.]+$/, ''));
               setRecordingTimestamp(new Date(recording.timestamp));
-              // Store the recording ID and channel mode so we can use original settings
               setCurrentRecordingId(recording.id);
               setCurrentRecordingChannelMode((recording.channelMode as 'mono' | 'stereo') || 'stereo');
               setActiveTab('recording');
             }}
             onDeleteRecording={handleDelete}
-          /* onOpenAI={(recording) => {
-            // Load selected recording for AI
-            const audioArray = new Uint8Array(recording.audioData);
-            const blob = new Blob([audioArray], { type: 'audio/webm' });
-            setAudioBlob(blob);
-            // Set the name without extension for display
-            const nameWithoutExt = recording.name.replace(/\.[^/.]+$/, '');
-            setRecordingName(nameWithoutExt);
-            setRecordingTimestamp(new Date(recording.timestamp));
-            // Store the recording ID and channel mode so we can use original settings
-            setCurrentRecordingId(recording.id);
-            setCurrentRecordingChannelMode((recording.channelMode as 'mono' | 'stereo') || 'stereo');
-            setActiveTab('ai');
-          }} */
           />
-        </div>
-      )}
-
-      {activeTab === 'ai' && (
-        <div className="ai-content">
-          {!audioBlob ? (
-            <div className="ai-empty-state">
-              <div className="ai-empty-icon">🎵</div>
-              <h3 className="ai-empty-title">No Audio Loaded</h3>
-              <p className="ai-empty-description">
-                Record audio or select a recording from Recent Recordings to use AI processing.
-              </p>
-              <button
-                className="ai-select-button"
-                onClick={() => setActiveTab('recent')}
-              >
-                Go to Recent Recordings
-              </button>
-            </div>
-          ) : (
-            <div className="ai-processor-wrapper">
-              <div className="ai-audio-info">
-                <div className="ai-audio-name">{recordingName || 'Untitled Recording'}</div>
-                {recordingName && (
-                  <button
-                    className="ai-load-button"
-                    onClick={() => setActiveTab('recent')}
-                    title="Select different recording"
-                  >
-                    Change Recording
-                  </button>
-                )}
-              </div>
-              <SAMProcessor
-                audioBlob={audioBlob}
-                onProcessed={async (processedBlob) => {
-                  // Update the audio blob with processed version
-                  setAudioBlob(processedBlob);
-                  // Re-analyze waveform for the processed audio
-                  await analyzeAudio(processedBlob);
-                  // Update recording name to indicate it's been processed
-                  const currentName = recordingName.replace(/\.[^/.]+$/, '');
-                  setRecordingName(`${currentName} (processed)`);
-                  // Switch to recording tab to see the processed audio
-                  setActiveTab('recording');
-                }}
-              />
-            </div>
-          )}
         </div>
       )}
 
@@ -1136,12 +673,8 @@ const Popup: React.FC = () => {
         </div>
       )}
 
-      {activeTab !== 'recent' && activeTab !== 'ai' && (
-        <button
-          className="buy-coffee-button"
-          onClick={() => window.open('https://buymeacoffee.com/TheUglyAlpaca', '_blank')}
-          title="Support the developer"
-        >
+      {activeTab !== 'recent' && (
+        <button className="buy-coffee-button" onClick={() => window.open('https://buymeacoffee.com/TheUglyAlpaca', '_blank')} title="Support the developer">
           ☕ Buy me a coffee
         </button>
       )}
@@ -1149,7 +682,6 @@ const Popup: React.FC = () => {
   );
 };
 
-// Initialize React app
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
@@ -1157,4 +689,3 @@ if (container) {
 }
 
 export default Popup;
-
