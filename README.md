@@ -196,11 +196,6 @@ We are exploring the integration of high-performance AI models and APIs (such as
 - **Sound Isolation**: Use AI to extract or remove specific sound events (e.g., background noise, specific instruments) from captured audio.
 - **Advanced Stem Export**: Download recordings separated into multiple high-fidelity tracks.
 
-### Potential Enhancements
-- Export recordings directly to file system.
-- Cloud storage integration (Google Drive, Dropbox).
-- Advanced multi-track editing.
-
 ## License
 
 MIT
