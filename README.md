@@ -1,6 +1,8 @@
-# Chrome Record - Chrome Extension
+# Chrome Recorder - Chrome Extension
 
 A Chrome extension for recording browser audio output with waveform visualization, playback controls, format conversion, and extensible audio processing.
+
+**[Install from Chrome Web Store](https://chromewebstore.google.com/detail/chrome-recorder/bfmjmjjaiefmjalpplfjeiiicddojdpf?hl=en&authuser=0)**
 
 <div align="center">
   <table>
@@ -74,21 +76,16 @@ A Chrome extension for recording browser audio output with waveform visualizatio
 
 Choose one of the following options to install the extension:
 
-### Option A: Quick Install (Version 1.0.0)
-Ideal if you want to get started quickly without building from source.
+### Option A: Chrome Web Store (Recommended)
+The easiest way to install and get automatic updates.
 
-1. Download or locate the `dist.zip` file in this repository.
-2. Open Chrome and navigate to `chrome://extensions/`.
-3. Enable **Developer mode** (toggle in the top right corner).
-4. Drag and drop the `dist.zip` file directly into the extensions page.
-
-> [!NOTE]
-> This installs version 1.0.0. It may not include the most recent features and improvements present in the latest source code.
+1. Visit the **[Chrome Web Store](https://chromewebstore.google.com/detail/chrome-recorder/bfmjmjjaiefmjalpplfjeiiicddojdpf?hl=en&authuser=0)**.
+2. Click **Add to Chrome**.
 
 ---
 
 ### Option B: Build from Source (Latest Version)
-Use this option to get the very latest improvements and features.
+Use this option for development or to get the very latest improvements and features.
 
 #### Prerequisites
 - **Node.js**: v14 or higher
@@ -146,7 +143,7 @@ Use this option to get the very latest improvements and features.
 - **Play/Load**: Click a recording's name or the play icon to load it into the main view.
 - **Download**: Click the download icon. It will use your current format/sample rate preferences.
 - **Delete**: Click the trash icon to permanently remove a recording.
-- **AI Processing**: Click the brain icon to access advanced audio processing tools (Experimental).
+
 
 ### Preferences
 
@@ -192,15 +189,6 @@ Use this option to get the very latest improvements and features.
 
 > [!IMPORTANT]
 > The features listed below are experimental and may not be fully implemented or available on the current branch.
-
-### SAM Audio Isolation (Meta SAM-Audio)
-> [!NOTE]
-> This feature is currently in progress and experimental.
-
-The extension is being developed to include integration with Meta's SAM-Audio model for isolating or removing specific sounds from recordings using natural language prompts.
-
-### Suno API Integration
-We are investigating the Suno API as a potential option for high-quality, AI-driven stem splitting and vocal/instrumental separation.
 
 ### Potential Enhancements
 - Export recordings directly to file system.
