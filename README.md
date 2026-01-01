@@ -190,6 +190,12 @@ Use this option for development or to get the very latest improvements and featu
 > [!IMPORTANT]
 > The features listed below are experimental and may not be fully implemented or available on the current branch.
 
+### AI Stem Splitting & Sound Isolation
+We are exploring the integration of high-performance AI models and APIs (such as **Suno** or other stem-splitting engines) to enable advanced audio manipulation. Potential experimental features include:
+- **Lead Vocal & Instrumental Separation**: Isolate vocals or backing tracks from any recording.
+- **Sound Isolation**: Use AI to extract or remove specific sound events (e.g., background noise, specific instruments) from captured audio.
+- **Advanced Stem Export**: Download recordings separated into multiple high-fidelity tracks.
+
 ### Potential Enhancements
 - Export recordings directly to file system.
 - Cloud storage integration (Google Drive, Dropbox).
