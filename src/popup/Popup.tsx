@@ -652,6 +652,17 @@ const Popup: React.FC = () => {
         <div className="recent-recordings-wrapper">
           <RecentRecordings
             onSelectRecording={(recording) => {
+              // Stop any currently playing audio before loading new recording
+              if (audioRef.current) {
+                audioRef.current.pause();
+                if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
+                  URL.revokeObjectURL(audioRef.current.src);
+                }
+                audioRef.current.src = '';
+              }
+              setIsPlaying(false);
+              setCurrentPlayTime(0);
+
               const audioArray = new Uint8Array(recording.audioData);
               const blob = new Blob([audioArray], { type: 'audio/webm' });
               setAudioBlob(blob);
