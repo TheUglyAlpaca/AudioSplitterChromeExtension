@@ -1206,7 +1206,7 @@ body:not(.light-mode):not(.midnight-mode):not(.forest-mode):not(.rainbow-mode) .
 
 /* Download All Button */
 .download-all-button {
-  position: absolute;
+  position: fixed;
   bottom: 12px;
   left: 12px;
   display: flex;
